@@ -12,8 +12,8 @@ ROOT = Path(__file__).parent
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "").lstrip("@")          # اختیاری؛ اگر خالی باشد از getMe خوانده می‌شود
 SUPPORT = os.getenv("SUPPORT_USERNAME", "").strip()                # مثلا nayi_support یا لینک کامل
-TEST_GB = float(os.getenv("TEST_GB", "0") or 0)                    # برای فعال‌سازی اکانت تست: TEST_GB=1
-TEST_DAYS = int(os.getenv("TEST_DAYS", "0") or 0)                  # و TEST_DAYS=1
+TEST_GB = float(os.getenv("TEST_GB", "1") or 1)                    # برای فعال‌سازی اکانت تست: TEST_GB=1
+TEST_DAYS = int(os.getenv("TEST_DAYS", "1") or 1)                  # و TEST_DAYS=1
 log = logging.getLogger("nayi-miniapp")
 
 # اسم توابع احتمالی ربات؛ اگر در bot.py وجود داشته باشند، امکانش در مینی‌اپ فعال می‌شود
@@ -28,6 +28,7 @@ app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 class BuyRequest(BaseModel):
     plan_id: int
     panel_id: int | None = None
+    discount_code: str | None = None
 
 class RenewRequest(BaseModel):
     service_id: int
@@ -38,6 +39,7 @@ class TestRequest(BaseModel):
 
 class DiscountRequest(BaseModel):
     code: str
+    plan_id: int | None = None
 
 def user_from_init(init_data: str):
     if not BOT_TOKEN or not init_data: raise HTTPException(401, "Telegram init data is required")
@@ -69,6 +71,7 @@ def qr_data(value: str):
 
 # ---------- helpers (جدید) ----------
 _locks: dict[int, asyncio.Lock] = {}
+_pending_discount: dict[int, dict] = {}
 def user_lock(uid: int) -> asyncio.Lock:
     """جلوی دو خرید هم‌زمان یک کاربر را می‌گیرد."""
     return _locks.setdefault(uid, asyncio.Lock())
@@ -101,6 +104,42 @@ def charge(b, uid: int, price: int):
 def refund(b, uid: int, price: int):
     if price: b.ex("UPDATE users SET balance=balance+? WHERE id=?", (price, uid))
 
+def price_for_code(b, uid: int, base: int, code: str | None):
+    """Use the bot's own discount engine, never trust a price from the browser."""
+    normal, _, active_code = b.dc_price(uid, base)
+    if not code:
+        return int(normal), int(base - normal), active_code
+    fn = find_fn(b, DISCOUNT_FN)
+    if not fn:
+        raise HTTPException(501, "سیستم کد تخفیف ربات فعال نیست")
+    try:
+        result = fn(uid, code.strip()[:40])
+        if asyncio.iscoroutine(result):
+            raise HTTPException(501, "سیستم تخفیف ربات باید همگام باشد")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(400, "کد تخفیف نامعتبر است")
+    if result is False or (isinstance(result, dict) and result.get("valid") is False):
+        raise HTTPException(400, "کد تخفیف نامعتبر است")
+    # Adapters: bot may return a final price, amount, or percent. Otherwise its dc_price state wins.
+    if isinstance(result, dict):
+        if result.get("price") is not None or result.get("final_price") is not None:
+            final = int(result.get("final_price", result.get("price")))
+        elif result.get("percent") is not None:
+            final = round(base * (100 - float(result["percent"])) / 100)
+        elif result.get("amount") is not None:
+            final = max(0, base - int(result["amount"]))
+        else:
+            final = int(b.dc_price(uid, base)[0])
+    elif isinstance(result, (int, float)) and result >= 0:
+        final = int(result if result <= base else base - result)
+    else:
+        final = int(b.dc_price(uid, base)[0])
+    if final > base or final < 0:
+        raise HTTPException(400, "مبلغ تخفیف نامعتبر است")
+    return final, base - final, code
+
 async def cleanup_panel(b, pn, uname):
     fn = find_fn(b, DELETE_FN)
     if not fn: log.error("orphan panel user %s on panel %s (no delete fn)", uname, col(pn, "id")); return
@@ -112,7 +151,7 @@ def panel_names(b):
     except Exception: return {}
 
 def features(b):
-    return {"renew": bool(find_fn(b, RENEW_FN)), "usage": bool(find_fn(b, USAGE_FN)), "discount": bool(find_fn(b, DISCOUNT_FN)),
+    return {"renew": bool(find_fn(b, RENEW_FN)), "usage": bool(find_fn(b, USAGE_FN)), "discount": bool(find_fn(b, DISCOUNT_FN) or hasattr(b, "dc_price")),
             "test": TEST_GB > 0 and TEST_DAYS > 0, "test_gb": TEST_GB, "test_days": TEST_DAYS}
 
 _bot_name = {"v": BOT_USERNAME}
@@ -191,7 +230,12 @@ async def buy(req: BuyRequest, x_telegram_init_data: str | None = Header(default
         p = b.q("SELECT * FROM plans WHERE id=? AND active=1", (req.plan_id,), True)
         if not p: raise HTTPException(404, "Plan not found")
         pn = pick_panel(b, req.panel_id)
-        price, _, code = b.dc_price(uid, p["price"])
+        pending = _pending_discount.get(uid)
+        if req.discount_code and pending and pending.get("code") == req.discount_code.strip() and pending.get("plan_id") == req.plan_id:
+            price, discount_amount, code = int(pending["price"]), int(p["price"]) - int(pending["price"]), req.discount_code.strip()
+            _pending_discount.pop(uid, None)
+        else:
+            price, discount_amount, code = price_for_code(b, uid, int(p["price"]), req.discount_code)
         charge(b, uid, price)
         uname = f"{b.USER_PREFIX}{uid}_{b.secrets.token_hex(2)}"
         try:
@@ -253,11 +297,14 @@ async def renew(req: RenewRequest, x_telegram_init_data: str | None = Header(def
 @app.post("/api/discount")
 async def discount(req: DiscountRequest, x_telegram_init_data: str | None = Header(default=None)):
     u = auth(x_telegram_init_data); b = bot_module(); uid = int(u["id"])
-    fn = find_fn(b, DISCOUNT_FN)
-    if not fn: raise HTTPException(501, "ثبت کد تخفیف از مینی‌اپ فعال نیست")
     code = (req.code or "").strip()[:40]
     if not code: raise HTTPException(400, "کد را وارد کن")
-    try: ok = await call(fn, uid, code)
-    except Exception: raise HTTPException(400, "کد تخفیف نامعتبر است")
-    if ok is False: raise HTTPException(400, "کد تخفیف نامعتبر است")
-    return {"ok": True}
+    if not find_fn(b, DISCOUNT_FN): raise HTTPException(501, "سیستم کد تخفیف ربات فعال نیست")
+    if req.plan_id:
+        p = b.q("SELECT * FROM plans WHERE id=? AND active=1", (req.plan_id,), True)
+        if not p: raise HTTPException(404, "پلن پیدا نشد")
+        price, amount, _ = price_for_code(b, uid, int(p["price"]), code)
+        _pending_discount[uid] = {"code": code, "plan_id": req.plan_id, "price": price}
+        return {"ok": True, "code": code, "price": price, "discount": amount}
+    _pending_discount[uid] = {"code": code}
+    return {"ok": True, "code": code}
