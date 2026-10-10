@@ -10,7 +10,7 @@ const PAGE = 6;
 
 const S = { plans: [], panels: [], services: [], balance: 0, month: null, selected: null, panelId: null, view: 'shop',
   busy: false, loaded: false, features: {}, hasTest: false, filter: 'all', shown: PAGE, guideOs: null, renewSvc: null, renewPlan: null,
-  discount: null, me: null, bot: '', support: '' };
+  discount: null, me: null, bot: '', support: '', tx: [] };
 
 /* ---------- helpers ---------- */
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -269,6 +269,7 @@ function renderServices() {
         <button type="button" data-qr="${s.id}"><span>▦</span>QR</button>
         <button type="button" data-usage="${s.id}"><span>📊</span>مصرف</button>
         ${S.features.renew && !s.is_test ? `<button type="button" data-renew="${s.id}"><span>↻</span>تمدید</button>` : `<button type="button" data-go="guide"><span>📖</span>راهنما</button>`}
+        <button type="button" data-delete="${s.id}"><span>⌫</span>حذف</button>
       </div>
       <div class="qr-box" id="qr-${s.id}"></div>
     </article>`;
@@ -276,6 +277,12 @@ function renderServices() {
   $('#more').classList.toggle('hidden', items.length <= S.shown);
   $('#more').textContent = `نمایش بیشتر (${num(items.length - S.shown)})`;
   tiltify(list);
+}
+
+function renderTransactions() {
+  const list = $('#transactionList');
+  if (!S.tx.length) { list.innerHTML = '<div class="empty"><b>🧾</b>تراکنشی ثبت نشده.</div>'; return; }
+  list.innerHTML = S.tx.map(x => `<article class="svc"><div class="svc-top"><span class="svc-flag">${x.kind === 'renew' ? '↻' : '✦'}</span><div class="svc-id"><b>${x.kind === 'renew' ? 'تمدید سرویس' : 'خرید سرویس'}</b><small>${new Date((x.created || 0) * 1000).toLocaleString('en-GB')}</small></div><span class="tag ok num">${num(x.amount)} تومان</span></div></article>`).join('');
 }
 
 /* ---------- guide ---------- */
@@ -325,11 +332,23 @@ function show(v) {
   $$('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
   $('.tab-ink').style.transform = `translateX(${-idx * 100}%)`;
   if (v === 'services') renderServices();
+  if (v === 'transactions') { loadTransactions().then(renderTransactions); }
   if (v === 'guide') renderGuide();
   if (v === 'profile') loadProfile();
   renderShop(); haptic('light');
   scrollTo({ top: 0, behavior: 'smooth' });
   syncChrome();
+}
+async function loadTransactions() {
+  if (DEMO) { S.tx = [{kind:'buy',amount:149000,created:Date.now()/1000-86400}]; return; }
+  try { S.tx = (await api('/api/transactions')).items || []; } catch (e) { toast(e.message, 'err'); }
+}
+
+async function removeService(id) {
+  if (!confirm('این سرویس از پنل و ربات حذف شود؟')) return;
+  if (DEMO) { S.services = S.services.filter(x => x.id != id); renderServices(); return toast('در پیش‌نمایش حذف شد'); }
+  try { await api('/api/service/' + id, { method: 'DELETE' }); S.services = S.services.filter(x => x.id != id); renderServices(); toast('سرویس از پنل و ربات حذف شد ✓'); }
+  catch (e) { toast(e.message, 'err'); }
 }
 function goBack() {
   if (sheetOpen()) return closeSheets();
@@ -524,6 +543,7 @@ document.addEventListener('click', e => {
   if (d.qr) return toggleQr(d.qr);
   if (d.usage) return toggleUsage(d.usage, t);
   if (d.renew) return openRenew(d.renew);
+  if (d.delete) return removeService(d.delete);
   if (d.os) { S.guideOs = d.os; return renderGuide(); }
   if (d.filter) { S.filter = d.filter; S.shown = PAGE; return renderServices(); }
   if (d.act === 'back') return goBack();

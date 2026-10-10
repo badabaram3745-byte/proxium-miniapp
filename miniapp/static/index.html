@@ -122,6 +122,14 @@
       <div id="guideSvc" class="guide-svc"></div>
     </div>
 
+    <div id="view-transactions" class="view">
+      <div class="head">
+        <div><small class="latin">LEDGER</small><h2>تاریخچه تراکنش‌ها</h2></div>
+        <button class="ghost" type="button" data-go="profile">بازگشت</button>
+      </div>
+      <div id="transactionList" class="service-list"></div>
+    </div>
+
     <!-- PROFILE -->
     <div id="view-profile" class="view">
       <div class="head"><div><small class="latin">IDENTITY NODE</small><h2>پروفایل</h2></div></div>
@@ -145,6 +153,9 @@
         <div class="stat"><small>سرویس فعال</small><b id="profileActive" class="num">—</b></div>
         <div class="stat"><small>کل سرویس‌ها</small><b id="profileServices" class="num">—</b></div>
         <div class="stat"><small>مجموع خرید</small><b id="profileSpent" class="num">—</b></div>
+      </div>
+      <div class="rows">
+        <button type="button" class="row" data-go="transactions"><span>🧾</span>تاریخچه تراکنش‌ها<i>‹</i></button>
       </div>
 
       <div class="rows">
