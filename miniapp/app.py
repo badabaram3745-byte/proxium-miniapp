@@ -198,6 +198,13 @@ def profile(x_telegram_init_data: str | None = Header(default=None)):
             "balance": int(dbu["balance"] or 0), "services": len(svcs), "active": sum(1 for s in svcs if s["status"] == "active" and (not s["expire"] or int(s["expire"]) > int(time.time()))),
             "spent": sum(int(s["price"] or 0) for s in svcs if not s["is_test"]), "photo": u.get("photo_url", "")}
 
+@app.get("/api/wallet")
+def wallet(x_telegram_init_data: str | None = Header(default=None)):
+    """Read the live wallet row used by the bot, without browser-cached state."""
+    u = auth(x_telegram_init_data); b = bot_module(); dbu = b.get_user(int(u["id"]))
+    if not dbu: raise HTTPException(404, "کاربر پیدا نشد")
+    return {"ok": True, "user_id": int(u["id"]), "balance": int(dbu["balance"] or 0), "updated": int(time.time())}
+
 @app.get("/api/service/{sid}")
 async def service_detail(sid: int, x_telegram_init_data: str | None = Header(default=None)):
     u = auth(x_telegram_init_data); b = bot_module(); uid = int(u["id"])
