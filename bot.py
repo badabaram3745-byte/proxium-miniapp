@@ -1671,6 +1671,12 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if S("start_sticker"):
         try: await update.message.reply_sticker(S("start_sticker"))
         except Exception: pass
+    # Deep-link from the Mini App: open the real top-up flow with the selected amount.
+    if ctx.args and ctx.args[0].startswith("topup_"):
+        raw = ctx.args[0][6:].replace(",", "")
+        if raw.isdigit() and int(raw) >= 10000:
+            return await ask_receipt(update, ctx, int(raw), False)
+        return await page_topup(update)
     await send_home(update, ctx, u["id"])
 
 async def cmd_emoji(update: Update, ctx):
