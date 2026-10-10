@@ -226,7 +226,7 @@ function flag(name = '') {
   if (/امریکا|آمریکا|usa|us\b/.test(n)) return '🇺🇸';
   return '🛰️';
 }
-const discounted = price => S.discount?.demo ? Math.round(price * .8) : price; // نسخه واقعی: قیمت‌ها از سرور با کد تخفیف آمده‌اند
+const discounted = price => S.discount?.price != null ? Number(S.discount.price) : (S.discount?.demo ? Math.round(price * .8) : price);
 
 /* ---------- services ---------- */
 function statusOf(s) {
@@ -366,7 +366,7 @@ function renderBill() {
   $('#billServer').textContent = curPanel()?.name || '—';
   $('#billPrice').textContent = money(p.price);
   $('#billDiscRow').classList.toggle('hidden', !S.discount);
-  if (S.discount) $('#billDisc').textContent = S.discount.demo ? `−${num(p.price - price)} تومان` : 'کد ثبت شد';
+  if (S.discount) $('#billDisc').textContent = `−${num(p.price - price)} تومان`;
   $('#billBalance').textContent = money(S.balance);
   $('#billAfter').textContent = short ? 'ناکافی' : money(after);
   $('#billAfter').classList.toggle('neg', short);
@@ -397,7 +397,7 @@ async function approve() {
   if (DEMO) { closeSheets(); return toast('پیش‌نمایشه؛ خرید واقعی از داخل ربات انجام می‌شه', 'err'); }
   S.busy = true; const btn = $('#approve'); btn.disabled = true; btn.classList.add('loading');
   try {
-    const d = await api('/api/buy', { method: 'POST', body: JSON.stringify({ plan_id: S.selected.id, panel_id: S.panelId }) });
+    const d = await api('/api/buy', { method: 'POST', body: JSON.stringify({ plan_id: S.selected.id, panel_id: S.panelId, discount_code: S.discount?.code || null }) });
     S.balance = d.balance; S.services = [d.service, ...S.services.filter(s => s.id !== d.service.id)];
     S.month = null; S.selected = null; S.discount = null; paintWallet();
     closeSheets(); show('services'); showSuccess(d.service);
@@ -474,7 +474,11 @@ async function applyDiscount(e) {
   e.preventDefault();
   const code = $('#dcInput').value.trim(); if (!code) return;
   if (DEMO) { S.discount = { code, demo: true }; renderBill(); renderShop(); return toast('کد اعمال شد (نمونه)'); }
-  try { await api('/api/discount', { method: 'POST', body: JSON.stringify({ code }) }); S.discount = { code }; await load(true); renderBill(); toast('کد اعمال شد ✓'); }
+  try {
+    const d = await api('/api/discount', { method: 'POST', body: JSON.stringify({ code, plan_id: S.selected?.id || null }) });
+    S.discount = { code: d.code || code, price: d.price, plan_id: S.selected?.id };
+    renderBill(); renderShop(); toast('کد اعمال شد ✓');
+  }
   catch (err) { toast(err.message, 'err'); }
 }
 
@@ -509,9 +513,9 @@ document.addEventListener('click', e => {
   const t = e.target.closest('button,[data-open]'); if (!t) return;
   const d = t.dataset;
   if (d.open) return openLink(d.open);
-  if (d.month) { S.month = +d.month; S.selected = null; renderShop(); haptic('light'); return; }
-  if (d.id) { const p = S.plans.find(x => x.id == d.id); S.selected = S.selected?.id === p?.id ? null : p; renderShop(); haptic('light'); return; }
-  if (d.panel) { S.panelId = +d.panel; S.selected = null; renderShop(); haptic('light'); return; }
+  if (d.month) { S.month = +d.month; S.selected = null; S.discount = null; renderShop(); haptic('light'); return; }
+  if (d.id) { const p = S.plans.find(x => x.id == d.id); S.selected = S.selected?.id === p?.id ? null : p; S.discount = null; renderShop(); haptic('light'); return; }
+  if (d.panel) { S.panelId = +d.panel; S.selected = null; S.discount = null; renderShop(); haptic('light'); return; }
   if (d.rplan) { S.renewPlan = S.plans.find(p => p.id == d.rplan); $$('#renewPlans .plan').forEach(x => x.classList.toggle('picked', x.dataset.rplan == d.rplan)); $('#renewGo').disabled = false; return; }
   if (d.view) return show(d.view);
   if (d.go) return show(d.go);
