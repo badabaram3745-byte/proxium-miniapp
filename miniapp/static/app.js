@@ -1,0 +1,3 @@
+const tg=window.Telegram?.WebApp; const statusEl=document.getElementById('status'); const userEl=document.getElementById('user');
+async function load(){try{if(!tg) throw new Error('این صفحه باید از داخل تلگرام باز شود'); tg.ready(); tg.expand(); const r=await fetch('/api/me',{headers:{'X-Telegram-Init-Data':tg.initData}}); const data=await r.json(); if(!r.ok) throw new Error(data.detail||'خطا در احراز هویت'); const u=data.user||{}; userEl.innerHTML=`<b>${u.first_name||''} ${u.last_name||''}</b><br>شناسه: ${u.id||'-'}${u.username?`<br>@${u.username}`:''}`; userEl.classList.remove('hidden'); statusEl.textContent='اتصال برقرار شد ✅';}catch(e){statusEl.textContent=e.message;}}
+document.getElementById('refresh').onclick=load; load();
