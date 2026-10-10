@@ -275,11 +275,11 @@ async def renew(req: RenewRequest, x_telegram_init_data: str | None = Header(def
         if not p: raise HTTPException(404, "Plan not found")
         pn = b.q("SELECT * FROM panels WHERE id=?", (col(s, "panel_id"),), True)
         if not pn or pn["ptype"] == "manual": raise HTTPException(409, "پنل این سرویس متصل نیست")
-        price, _, code = price_for_code(b, uid, int(p["price"]), None); charge(b, uid, price)
-        now = int(time.time()); expire = max(now, int(s["expire"] or now)) + p["days"] * 86400
-        try: await call(fn, pn, s["username"], p["gb"], expire)
+        price, _, code = b.dc_price(uid, p["price"]); charge(b, uid, price)
+        try: await call(fn, pn, s["username"], p["gb"], p["days"])
         except Exception:
             refund(b, uid, price); log.exception("renew failed"); raise HTTPException(502, "تمدید ناموفق بود؛ مبلغ برگشت خورد")
+        now = int(time.time()); expire = max(now, int(s["expire"] or now)) + p["days"] * 86400
         b.ex("UPDATE services SET gb=?, days=?, expire=?, status='active' WHERE id=?", (p["gb"], p["days"], expire, s["id"]))
         try: b.dc_use(uid, code); b.trx_log(uid,"renew",s["id"],p["id"],pn["id"],p["gb"],p["days"],price,p["price"]-price,code)
         except Exception: log.exception("trx log failed")
