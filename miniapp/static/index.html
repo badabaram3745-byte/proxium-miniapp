@@ -1,1 +1,136 @@
-<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>نایی | NAYI</title><link rel="stylesheet" href="/static/style.css"></head><body><main id="app" class="space"><div class="backdrop"></div><header><div class="brand"><b>N</b><strong>نایی</strong><small>NAYI / DEEP SPACE</small></div><div class="themes"><button id="ocean" title="تم دریا">🌊</button><button id="space" title="تم کهکشان">✨</button></div></header><section class="hero"><span class="status">● اتصال امن برقرار است</span><h1 id="heroTitle">سفرت را<br><em>شروع کن.</em></h1><p id="heroText">یک اتصال سریع و بی‌مرز، برای مدار دیجیتال شما.</p><div class="visual"><span class="planet">✦<b>N</b></span><i class="ring r1"></i><i class="ring r2"></i></div></section><section class="body"><div id="shop"><div class="title"><div><small>MISSION CONTROL</small><h2 id="stepTitle">مدت اشتراک را انتخاب کن</h2></div><button id="back" class="back">↪ بازگشت</button></div><div id="months" class="months"><button data-month="1"><b>◒</b><strong>یک ماهه</strong><small>۱ ماه اتصال نایی　‹</small></button><button data-month="3"><b>◓</b><strong>سه ماهه</strong><small>۳ ماه اتصال نایی　‹</small></button><button data-month="6"><b>◑</b><strong>شش ماهه</strong><small>۶ ماه اتصال نایی　‹</small></button></div><div id="plans" class="plans hidden"></div><div id="checkout" class="checkout hidden"><div><small>انتخاب شما</small><b id="choice"></b><span id="choicePrice"></span></div><button id="buy">خرید و فعال‌سازی　‹</button></div></div><div id="services" class="page hidden"><div class="title"><div><small>ACTIVE CHANNELS</small><h2>سرویس‌های من</h2></div><button class="back navback">↪ بازگشت</button></div><div id="serviceList"></div></div><div id="profile" class="page hidden"><small>IDENTITY NODE</small><h2>پروفایل نایی</h2><div class="profileCard"><b id="profileName">کاربر نایی</b><span id="profileUser"></span></div><div class="stats"><div><b id="profileBalance">۰</b><small>موجودی کیف پول</small></div><div><b id="profileServices">۰</b><small>سرویس فعال</small></div><div><b id="profileId">-</b><small>شناسه کاربری</small></div></div></div></section><nav><button data-view="shop" class="active">✦<small>خرید</small></button><button data-view="services">◈<small>سرویس من</small></button><button data-view="profile">◎<small>پروفایل</small></button></nav><div id="toast"></div><div id="modal" class="modal hidden"><div class="dialog"><button id="close">×</button><b>◎</b><small>تأیید نهایی سفارش</small><h2 id="modalChoice"></h2><p id="modalText"></p><button id="approve">تأیید و پرداخت از کیف پول</button></div></div></main><script src="https://telegram.org/js/telegram-web-app.js"></script><script src="/static/app.js"></script></body></html>
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#060b1a">
+<title>نایی | NAYI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;800;900&family=Space+Grotesk:wght@500;700&display=swap">
+<link rel="stylesheet" href="/static/style.css?v=3">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+<main id="app" class="app theme-space">
+  <canvas id="sky" aria-hidden="true"></canvas>
+  <div class="aurora" aria-hidden="true"></div>
+  <svg class="waves" viewBox="0 0 1200 300" preserveAspectRatio="none" aria-hidden="true">
+    <path class="w1" d="M0 120 C200 60 400 180 600 120 S1000 60 1200 120 V300 H0Z"/>
+    <path class="w2" d="M0 170 C220 110 420 230 640 170 S1020 110 1200 170 V300 H0Z"/>
+    <path class="w3" d="M0 220 C240 180 460 260 680 220 S1040 180 1200 220 V300 H0Z"/>
+  </svg>
+
+  <header class="top">
+    <div class="brand">
+      <span class="logo"><i></i>N</span>
+      <div><strong>نایی</strong><small class="latin" id="brandSub">NAYI · DEEP SPACE</small></div>
+    </div>
+    <div class="top-actions">
+      <button class="wallet" id="walletChip" type="button" aria-label="موجودی کیف پول">
+        <span class="wallet-ico">◈</span><b id="walletAmount" class="num">—</b>
+      </button>
+      <div class="theme-switch" role="radiogroup" aria-label="انتخاب تم">
+        <button type="button" data-theme="space" role="radio" aria-checked="true" title="کهکشان">✦</button>
+        <button type="button" data-theme="ocean" role="radio" aria-checked="false" title="دریا">≈</button>
+        <span class="thumb"></span>
+      </div>
+    </div>
+  </header>
+
+  <div id="demoBar" class="demo-bar hidden">حالت پیش‌نمایش · برای خرید واقعی، از داخل ربات باز کن</div>
+
+  <section class="hero" id="hero">
+    <div class="hero-copy">
+      <span class="pulse"><i></i><span id="heroStatus">اتصال امن برقرار است</span></span>
+      <h1 id="heroTitle">سفرت را<br><em>شروع کن.</em></h1>
+      <p id="heroText">اتصال سریع و بی‌مرز، برای مدار دیجیتال تو.</p>
+    </div>
+    <div class="orb" aria-hidden="true">
+      <span class="orbit o1"><i></i></span>
+      <span class="orbit o2"><i></i></span>
+      <span class="planet"><b>N</b></span>
+    </div>
+  </section>
+
+  <section class="views">
+    <!-- SHOP -->
+    <div id="view-shop" class="view active">
+      <ol class="steps" id="steps">
+        <li data-step="1" class="on"><span class="num">1</span>مدت</li>
+        <li data-step="2"><span class="num">2</span>پلن</li>
+        <li data-step="3"><span class="num">3</span>پرداخت</li>
+      </ol>
+
+      <div class="head">
+        <div><small class="latin">MISSION CONTROL</small><h2 id="stepTitle">مدت اشتراک را انتخاب کن</h2></div>
+        <button id="back" class="ghost hidden" type="button">بازگشت ↩</button>
+      </div>
+
+      <div id="months" class="months"></div>
+      <div id="panels" class="panels hidden"></div>
+      <div id="plans" class="plans hidden"></div>
+      <div id="skeleton" class="skeleton"><i></i><i></i><i></i></div>
+    </div>
+
+    <!-- SERVICES -->
+    <div id="view-services" class="view">
+      <div class="head">
+        <div><small class="latin">ACTIVE CHANNELS</small><h2>سرویس‌های من</h2></div>
+        <button class="ghost" type="button" id="refresh">به‌روزرسانی ⟳</button>
+      </div>
+      <div id="serviceList" class="service-list"></div>
+    </div>
+
+    <!-- PROFILE -->
+    <div id="view-profile" class="view">
+      <div class="head"><div><small class="latin">IDENTITY NODE</small><h2>پروفایل</h2></div></div>
+      <div class="id-card">
+        <div class="avatar" id="avatar">N</div>
+        <div class="id-meta"><b id="profileName">کاربر نایی</b><span id="profileUser" class="latin">—</span></div>
+        <span class="id-chip latin">ID <b id="profileId" class="num">—</b></span>
+      </div>
+      <div class="stats">
+        <div class="stat wide"><small>موجودی کیف پول</small><b id="profileBalance">—</b></div>
+        <div class="stat"><small>سرویس فعال</small><b id="profileActive" class="num">—</b></div>
+        <div class="stat"><small>کل سرویس‌ها</small><b id="profileServices" class="num">—</b></div>
+      </div>
+      <p class="hint">برای شارژ کیف پول از منوی ربات اقدام کن.</p>
+    </div>
+  </section>
+
+  <!-- checkout bar -->
+  <div id="checkout" class="checkout" aria-live="polite">
+    <div class="co-info"><small>انتخاب تو</small><b id="choice">—</b></div>
+    <div class="co-price"><b id="choicePrice" class="num">—</b><small>تومان</small></div>
+    <button id="buy" type="button" class="cta">خرید</button>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button type="button" data-view="shop" class="active"><span>✦</span><small>خرید</small></button>
+    <button type="button" data-view="services"><span>◈</span><small>سرویس‌ها</small><em id="svcBadge" class="badge hidden num">0</em></button>
+    <button type="button" data-view="profile"><span>◎</span><small>پروفایل</small></button>
+    <i class="tab-ink"></i>
+  </nav>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <div id="modal" class="sheet-wrap" aria-hidden="true">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="modalChoice">
+      <span class="grab"></span>
+      <button id="close" class="x" type="button" aria-label="بستن">×</button>
+      <small class="latin">ORDER CONFIRMATION</small>
+      <h2 id="modalChoice">—</h2>
+      <dl class="bill">
+        <div><dt>مبلغ پلن</dt><dd id="billPrice">—</dd></div>
+        <div><dt>موجودی فعلی</dt><dd id="billBalance">—</dd></div>
+        <div class="total"><dt>موجودی پس از خرید</dt><dd id="billAfter">—</dd></div>
+      </dl>
+      <p id="billWarn" class="warn hidden">موجودی کافی نیست. ابتدا کیف پول را از ربات شارژ کن.</p>
+      <button id="approve" type="button" class="cta wide"><span>تأیید و پرداخت از کیف پول</span></button>
+    </div>
+  </div>
+</main>
+<script src="/static/app.js?v=3"></script>
+</body>
+</html>
