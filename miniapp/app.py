@@ -1,4 +1,4 @@
-import base64, hashlib, hmac, html, io, json, os, time
+import base64, hashlib, hmac, io, json, os, time
 from pathlib import Path
 from urllib.parse import parse_qsl
 from fastapi import FastAPI, Header, HTTPException
@@ -66,7 +66,8 @@ def catalog(x_telegram_init_data: str | None = Header(default=None)):
 @app.get("/api/profile")
 def profile(x_telegram_init_data: str | None = Header(default=None)):
     u = auth(x_telegram_init_data); b = bot_module(); dbu = b.get_user(int(u["id"]))
-    return {"ok": True, "id": u["id"], "name": dbu["name"] or u.get("first_name", ""), "username": dbu["username"] or u.get("username", ""), "phone": dbu["phone"] or "", "balance": dbu["balance"], "services": len(user_services(b, int(u["id"]))) }
+    svcs = user_services(b, int(u["id"]))
+    return {"ok": True, "id": u["id"], "name": dbu["name"] or u.get("first_name", ""), "username": dbu["username"] or u.get("username", ""), "phone": dbu["phone"] or "", "balance": int(dbu["balance"] or 0), "services": len(svcs), "active": sum(1 for s in svcs if s["status"] == "active")}
 
 @app.post("/api/buy")
 async def buy(req: BuyRequest, x_telegram_init_data: str | None = Header(default=None)):
@@ -77,11 +78,16 @@ async def buy(req: BuyRequest, x_telegram_init_data: str | None = Header(default
     if not pn or pn["ptype"] == "manual": raise HTTPException(409, "پنل متصل نیست؛ خرید انجام نشد")
     price, _, code = b.dc_price(uid, p["price"]); dbu = b.get_user(uid)
     if int(dbu["balance"] or 0) < price: raise HTTPException(402, f"موجودی کافی نیست. موجودی: {b.money(dbu['balance'])}")
+    before = int(dbu["balance"] or 0)
     b.ex("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?", (price, uid, price))
+    if int(b.get_user(uid)["balance"] or 0) > before - price:
+        # deduction did not happen (balance changed meanwhile) -> do not create service, do not refund
+        raise HTTPException(402, "موجودی کافی نیست؛ دوباره تلاش کن")
     try:
         uname = f"{b.USER_PREFIX}{uid}_{b.secrets.token_hex(2)}"; res = await b.panel_create(pn, uname, p["gb"], p["days"]); now=int(time.time())
         sid = b.ex("INSERT INTO services(user_id,plan_id,panel_id,username,link,sub,gb,days,price,created,expire,is_test,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,0,'active')", (uid,p["id"],pn["id"],uname,res["link"],res["sub"],p["gb"],p["days"],price,now,now+p["days"]*86400))
         b.dc_use(uid, code); b.trx_log(uid,"buy",sid,p["id"],pn["id"],p["gb"],p["days"],price,p["price"]-price,code)
         return {"ok": True, "service": {"id": sid, "name": uname, "gb": p["gb"], "days": p["days"], "price": price, "link": res["link"], "sub": res["sub"], "qr": qr_data(res["link"] or res["sub"] or "")}, "balance": int(b.get_user(uid)["balance"])}
-    except Exception as e:
-        b.ex("UPDATE users SET balance=balance+? WHERE id=?", (price, uid)); raise HTTPException(502, "ساخت سرویس ناموفق بود؛ مبلغ برگشت خورد")
+    except Exception:
+        b.ex("UPDATE users SET balance=balance+? WHERE id=?", (price, uid))
+        raise HTTPException(502, "ساخت سرویس ناموفق بود؛ مبلغ به کیف پول برگشت")
