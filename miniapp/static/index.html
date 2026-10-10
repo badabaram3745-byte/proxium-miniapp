@@ -2,13 +2,13 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#060b1a">
 <title>نایی | NAYI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;800;900&family=Space+Grotesk:wght@500;700&display=swap">
-<link rel="stylesheet" href="/static/style.css?v=3">
+<link rel="stylesheet" href="/static/style.css?v=4">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -21,11 +21,12 @@
     <path class="w3" d="M0 220 C240 180 460 260 680 220 S1040 180 1200 220 V300 H0Z"/>
   </svg>
 
+  <!-- HEADER: بالا راست = پروفایل کاربر -->
   <header class="top">
-    <div class="brand">
-      <span class="logo"><i></i>N</span>
-      <div><strong>نایی</strong><small class="latin" id="brandSub">NAYI · DEEP SPACE</small></div>
-    </div>
+    <button class="me" id="me" type="button" aria-label="پروفایل">
+      <span class="ava" id="meAva"><img id="meImg" alt="" hidden><b id="meInit">N</b><i class="ava-ring"></i></span>
+      <span class="me-txt"><small>سلام 👋</small><b id="meName">کاربر نایی</b></span>
+    </button>
     <div class="top-actions">
       <button class="wallet" id="walletChip" type="button" aria-label="موجودی کیف پول">
         <span class="wallet-ico">◈</span><b id="walletAmount" class="num">—</b>
@@ -33,23 +34,30 @@
       <div class="theme-switch" role="radiogroup" aria-label="انتخاب تم">
         <button type="button" data-theme="space" role="radio" aria-checked="true" title="کهکشان">✦</button>
         <button type="button" data-theme="ocean" role="radio" aria-checked="false" title="دریا">≈</button>
+        <button type="button" data-theme="dawn" role="radio" aria-checked="false" title="روشن">☀</button>
         <span class="thumb"></span>
       </div>
     </div>
   </header>
 
-  <div id="demoBar" class="demo-bar hidden">حالت پیش‌نمایش · برای خرید واقعی، از داخل ربات باز کن</div>
+  <div id="demoBar" class="demo-bar hidden">حالت پیش‌نمایش · برای خرید واقعی از داخل ربات باز کن</div>
 
+  <!-- HERO 3D -->
   <section class="hero" id="hero">
     <div class="hero-copy">
-      <span class="pulse"><i></i><span id="heroStatus">اتصال امن برقرار است</span></span>
+      <span class="pulse"><i></i><span>اتصال امن برقرار است</span></span>
       <h1 id="heroTitle">سفرت را<br><em>شروع کن.</em></h1>
       <p id="heroText">اتصال سریع و بی‌مرز، برای مدار دیجیتال تو.</p>
+      <span class="brand-tag latin" id="brandSub">NAYI · DEEP SPACE</span>
     </div>
-    <div class="orb" aria-hidden="true">
-      <span class="orbit o1"><i></i></span>
-      <span class="orbit o2"><i></i></span>
-      <span class="planet"><b>N</b></span>
+    <div class="scene" id="scene" aria-hidden="true">
+      <div class="world">
+        <i class="halo"></i>
+        <i class="ring back"></i>
+        <span class="moon-x"><span class="moon-y"><i class="moon"></i></span></span>
+        <div class="planet"><i class="surface"></i><i class="clouds"></i><i class="shade"></i><b>N</b></div>
+        <i class="ring front"></i>
+      </div>
     </div>
   </section>
 
@@ -57,18 +65,26 @@
     <!-- SHOP -->
     <div id="view-shop" class="view active">
       <ol class="steps" id="steps">
-        <li data-step="1" class="on"><span class="num">1</span>مدت</li>
-        <li data-step="2"><span class="num">2</span>پلن</li>
-        <li data-step="3"><span class="num">3</span>پرداخت</li>
+        <li data-step="1" class="on"><span class="num">1</span><em>مدت</em></li>
+        <li data-step="2"><span class="num">2</span><em>سرور</em></li>
+        <li data-step="3"><span class="num">3</span><em>پلن</em></li>
+        <li data-step="4"><span class="num">4</span><em>پرداخت</em></li>
       </ol>
 
+      <div id="testCard" class="test-card tilt hidden">
+        <span class="gift">🎁</span>
+        <div><b>اکانت تست رایگان</b><small id="testInfo">—</small></div>
+        <button type="button" class="mini" id="testBtn"><span>دریافت</span></button>
+      </div>
+
       <div class="head">
-        <div><small class="latin">MISSION CONTROL</small><h2 id="stepTitle">مدت اشتراک را انتخاب کن</h2></div>
+        <div><small class="latin" id="stepEyebrow">MISSION CONTROL</small><h2 id="stepTitle">مدت اشتراک را انتخاب کن</h2></div>
         <button id="back" class="ghost hidden" type="button">بازگشت ↩</button>
       </div>
 
       <div id="months" class="months"></div>
       <div id="panels" class="panels hidden"></div>
+      <div id="serverChip" class="server-chip hidden"></div>
       <div id="plans" class="plans hidden"></div>
       <div id="skeleton" class="skeleton"><i></i><i></i><i></i></div>
     </div>
@@ -79,58 +95,131 @@
         <div><small class="latin">ACTIVE CHANNELS</small><h2>سرویس‌های من</h2></div>
         <button class="ghost" type="button" id="refresh">به‌روزرسانی ⟳</button>
       </div>
+      <div class="seg" id="svcFilter">
+        <button type="button" data-filter="all" class="on">همه <span class="num" id="cAll">0</span></button>
+        <button type="button" data-filter="active">فعال <span class="num" id="cActive">0</span></button>
+        <button type="button" data-filter="ended">تمام‌شده <span class="num" id="cEnded">0</span></button>
+      </div>
       <div id="serviceList" class="service-list"></div>
+      <button type="button" id="more" class="ghost more hidden">نمایش بیشتر</button>
+    </div>
+
+    <!-- GUIDE -->
+    <div id="view-guide" class="view">
+      <div class="head"><div><small class="latin">CONNECT GUIDE</small><h2>راهنمای اتصال</h2></div></div>
+      <div class="seg" id="osSeg">
+        <button type="button" data-os="android" class="on">اندروید</button>
+        <button type="button" data-os="ios">آیفون</button>
+        <button type="button" data-os="windows">ویندوز</button>
+        <button type="button" data-os="mac">مک</button>
+      </div>
+      <ol class="how">
+        <li><span class="num">1</span>یکی از برنامه‌های زیر را نصب کن</li>
+        <li><span class="num">2</span>دکمه «افزودن خودکار» را بزن یا لینک ساب را کپی کن</li>
+        <li><span class="num">3</span>داخل برنامه روی اتصال بزن ✓</li>
+      </ol>
+      <div id="apps" class="apps"></div>
+      <div id="guideSvc" class="guide-svc"></div>
     </div>
 
     <!-- PROFILE -->
     <div id="view-profile" class="view">
       <div class="head"><div><small class="latin">IDENTITY NODE</small><h2>پروفایل</h2></div></div>
       <div class="id-card">
-        <div class="avatar" id="avatar">N</div>
+        <div class="avatar" id="avatar"><img id="avatarImg" alt="" hidden><b id="avatarInit">N</b></div>
         <div class="id-meta"><b id="profileName">کاربر نایی</b><span id="profileUser" class="latin">—</span></div>
-        <span class="id-chip latin">ID <b id="profileId" class="num">—</b></span>
+        <button type="button" class="id-chip latin" id="copyId">ID <b id="profileId" class="num">—</b> ⧉</button>
       </div>
+
+      <div class="card3d-wrap">
+        <div class="card3d tilt" id="walletCard">
+          <i class="holo"></i>
+          <div class="c-top"><span class="latin">NAYI WALLET</span><span class="chip-ic"></span></div>
+          <small>موجودی کیف پول</small>
+          <b id="profileBalance">—</b>
+          <div class="c-bot"><span class="latin" id="cardId">•••• ••••</span><button type="button" class="topup" data-act="topup">+ شارژ کیف پول</button></div>
+        </div>
+      </div>
+
       <div class="stats">
-        <div class="stat wide"><small>موجودی کیف پول</small><b id="profileBalance">—</b></div>
         <div class="stat"><small>سرویس فعال</small><b id="profileActive" class="num">—</b></div>
         <div class="stat"><small>کل سرویس‌ها</small><b id="profileServices" class="num">—</b></div>
+        <div class="stat"><small>مجموع خرید</small><b id="profileSpent" class="num">—</b></div>
       </div>
-      <p class="hint">برای شارژ کیف پول از منوی ربات اقدام کن.</p>
+
+      <div class="rows">
+        <button type="button" class="row" data-go="guide"><span>📖</span>راهنمای اتصال<i>‹</i></button>
+        <button type="button" class="row" data-act="support" id="supportRow"><span>💬</span>پشتیبانی<i>‹</i></button>
+        <button type="button" class="row" data-act="bot"><span>🤖</span>بازگشت به ربات<i>‹</i></button>
+      </div>
+      <p class="hint latin">NAYI MINI APP · v4</p>
     </div>
   </section>
 
   <!-- checkout bar -->
   <div id="checkout" class="checkout" aria-live="polite">
-    <div class="co-info"><small>انتخاب تو</small><b id="choice">—</b></div>
-    <div class="co-price"><b id="choicePrice" class="num">—</b><small>تومان</small></div>
+    <div class="co-info"><small id="coServer">انتخاب تو</small><b id="choice">—</b></div>
+    <div class="co-price"><s id="choiceOrig" class="num hidden"></s><b id="choicePrice" class="num">—</b><small>تومان</small></div>
     <button id="buy" type="button" class="cta">خرید</button>
   </div>
 
   <nav class="tabs" id="tabs">
     <button type="button" data-view="shop" class="active"><span>✦</span><small>خرید</small></button>
     <button type="button" data-view="services"><span>◈</span><small>سرویس‌ها</small><em id="svcBadge" class="badge hidden num">0</em></button>
+    <button type="button" data-view="guide"><span>⌘</span><small>راهنما</small></button>
     <button type="button" data-view="profile"><span>◎</span><small>پروفایل</small></button>
     <i class="tab-ink"></i>
   </nav>
 
   <div id="toast" class="toast" role="status"></div>
 
+  <!-- confirm sheet -->
   <div id="modal" class="sheet-wrap" aria-hidden="true">
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="modalChoice">
       <span class="grab"></span>
-      <button id="close" class="x" type="button" aria-label="بستن">×</button>
-      <small class="latin">ORDER CONFIRMATION</small>
+      <button class="x" data-close type="button" aria-label="بستن">×</button>
+      <small class="latin" id="sheetEyebrow">ORDER CONFIRMATION</small>
       <h2 id="modalChoice">—</h2>
       <dl class="bill">
+        <div><dt>سرور</dt><dd id="billServer">—</dd></div>
         <div><dt>مبلغ پلن</dt><dd id="billPrice">—</dd></div>
+        <div id="billDiscRow" class="hidden"><dt>تخفیف</dt><dd id="billDisc" class="good">—</dd></div>
         <div><dt>موجودی فعلی</dt><dd id="billBalance">—</dd></div>
         <div class="total"><dt>موجودی پس از خرید</dt><dd id="billAfter">—</dd></div>
       </dl>
-      <p id="billWarn" class="warn hidden">موجودی کافی نیست. ابتدا کیف پول را از ربات شارژ کن.</p>
+      <form id="dcForm" class="dc hidden" autocomplete="off">
+        <input id="dcInput" maxlength="40" placeholder="کد تخفیف داری؟" aria-label="کد تخفیف">
+        <button type="submit" class="mini alt">اعمال</button>
+      </form>
+      <div id="billWarn" class="warn hidden"><span>موجودی کافی نیست.</span><button type="button" class="mini" data-act="topup">شارژ کیف پول</button></div>
       <button id="approve" type="button" class="cta wide"><span>تأیید و پرداخت از کیف پول</span></button>
     </div>
   </div>
+
+  <!-- renew sheet -->
+  <div id="renewSheet" class="sheet-wrap" aria-hidden="true">
+    <div class="sheet" role="dialog" aria-modal="true">
+      <span class="grab"></span>
+      <button class="x" data-close type="button" aria-label="بستن">×</button>
+      <small class="latin">RENEW CHANNEL</small>
+      <h2 id="renewTitle">تمدید سرویس</h2>
+      <div id="renewPlans" class="plans compact"></div>
+      <button id="renewGo" type="button" class="cta wide" disabled><span>تمدید و پرداخت</span></button>
+    </div>
+  </div>
+
+  <!-- success -->
+  <div id="success" class="success" aria-hidden="true">
+    <div class="burst" id="burst"></div>
+    <div class="ok3d"><i class="r1"></i><i class="r2"></i><b>✓</b></div>
+    <h2 id="sucTitle">سرویست آماده‌ست!</h2>
+    <p id="sucText">—</p>
+    <div class="suc-actions">
+      <button type="button" class="cta" id="sucCopy"><span>کپی لینک اتصال</span></button>
+      <button type="button" class="ghost" id="sucGo">مشاهده سرویس</button>
+    </div>
+  </div>
 </main>
-<script src="/static/app.js?v=3"></script>
+<script src="/static/app.js?v=4"></script>
 </body>
 </html>
