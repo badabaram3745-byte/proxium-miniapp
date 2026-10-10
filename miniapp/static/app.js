@@ -358,7 +358,9 @@ async function removeService(id) {
 
 function topupBot() {
   if (DEMO) return toast('پیش‌نمایشه؛ شارژ واقعی داخل ربات انجام می‌شود', 'err');
-  openBot();
+  const u = S.bot ? `https://t.me/${S.bot}?start=topup_${encodeURIComponent(S.topupAmount)}` : '';
+  if (!u) return toast('لینک ربات پیدا نشد', 'err');
+  try { tg?.openTelegramLink ? tg.openTelegramLink(u) : window.open(u, '_blank'); } catch (_) { window.open(u, '_blank'); }
 }
 function goBack() {
   if (sheetOpen()) return closeSheets();
@@ -581,6 +583,26 @@ $('#renewSheet').addEventListener('click', e => { if (e.target.id === 'renewShee
 document.addEventListener('keydown', e => { if (e.key === 'Escape') goBack(); });
 $$('.theme-switch button').forEach(b => b.addEventListener('click', () => setTheme(b.dataset.theme)));
 tg?.BackButton?.onClick(goBack);
+// The bot and Mini App use the same wallet balance. Refresh it when Telegram
+// brings the Mini App back to the foreground after a top-up is approved.
+let refreshOnReturn = false;
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'hidden') {
+    refreshOnReturn = true;
+    return;
+  }
+  if (refreshOnReturn && !DEMO) {
+    refreshOnReturn = false;
+    await load();
+    if (S.view === 'profile') await loadProfile();
+  }
+});
+window.addEventListener('focus', async () => {
+  if (!DEMO && S.loaded) {
+    await load();
+    if (S.view === 'profile') await loadProfile();
+  }
+});
 
 /* ---------- boot ---------- */
 if (tg) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes?.(); } catch (_) {} }
