@@ -12,15 +12,15 @@ ROOT = Path(__file__).parent
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "").lstrip("@")          # اختیاری؛ اگر خالی باشد از getMe خوانده می‌شود
 SUPPORT = os.getenv("SUPPORT_USERNAME", "").strip()                # مثلا nayi_support یا لینک کامل
-TEST_GB = float(os.getenv("TEST_GB", "1") or 1)                    # برای فعال‌سازی اکانت تست: TEST_GB=1
-TEST_DAYS = int(os.getenv("TEST_DAYS", "1") or 1)                  # و TEST_DAYS=1
+TEST_GB = float(os.getenv("TEST_GB", "0") or 0)                    # برای فعال‌سازی اکانت تست: TEST_GB=1
+TEST_DAYS = int(os.getenv("TEST_DAYS", "0") or 0)                  # و TEST_DAYS=1
 log = logging.getLogger("nayi-miniapp")
 
 # اسم توابع احتمالی ربات؛ اگر در bot.py وجود داشته باشند، امکانش در مینی‌اپ فعال می‌شود
 RENEW_FN = ("panel_renew", "panel_extend", "panel_update_user")      # (panel, username, gb, days)
-USAGE_FN = ("panel_usage", "panel_get_user", "panel_user_info")      # (panel, username) -> dict
+USAGE_FN = ("panel_usage", "panel_get_user", "panel_user_info", "panel_info")      # (panel, username) -> dict
 DELETE_FN = ("panel_delete", "panel_remove", "panel_delete_user")    # (panel, username)
-DISCOUNT_FN = ("dc_apply", "dc_set", "apply_discount")               # (uid, code)
+DISCOUNT_FN = ("dc_apply", "dc_set", "apply_discount", "dc_check")               # (uid, code)
 
 app = FastAPI(title="NAYI Mini App")
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
@@ -105,40 +105,16 @@ def refund(b, uid: int, price: int):
     if price: b.ex("UPDATE users SET balance=balance+? WHERE id=?", (price, uid))
 
 def price_for_code(b, uid: int, base: int, code: str | None):
-    """Use the bot's own discount engine, never trust a price from the browser."""
-    normal, _, active_code = b.dc_price(uid, base)
+    """Validate against the bot's real discounts table. Browser prices are never trusted."""
     if not code:
-        return int(normal), int(base - normal), active_code
-    fn = find_fn(b, DISCOUNT_FN)
-    if not fn:
-        raise HTTPException(501, "سیستم کد تخفیف ربات فعال نیست")
-    try:
-        result = fn(uid, code.strip()[:40])
-        if asyncio.iscoroutine(result):
-            raise HTTPException(501, "سیستم تخفیف ربات باید همگام باشد")
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(400, "کد تخفیف نامعتبر است")
-    if result is False or (isinstance(result, dict) and result.get("valid") is False):
-        raise HTTPException(400, "کد تخفیف نامعتبر است")
-    # Adapters: bot may return a final price, amount, or percent. Otherwise its dc_price state wins.
-    if isinstance(result, dict):
-        if result.get("price") is not None or result.get("final_price") is not None:
-            final = int(result.get("final_price", result.get("price")))
-        elif result.get("percent") is not None:
-            final = round(base * (100 - float(result["percent"])) / 100)
-        elif result.get("amount") is not None:
-            final = max(0, base - int(result["amount"]))
-        else:
-            final = int(b.dc_price(uid, base)[0])
-    elif isinstance(result, (int, float)) and result >= 0:
-        final = int(result if result <= base else base - result)
-    else:
-        final = int(b.dc_price(uid, base)[0])
-    if final > base or final < 0:
-        raise HTTPException(400, "مبلغ تخفیف نامعتبر است")
-    return final, base - final, code
+        price, _, active_code = b.dc_price(uid, base)
+        return int(price), int(base - price), active_code
+    checker = getattr(b, "dc_check", None)
+    if not checker: raise HTTPException(501, "سیستم کد تخفیف ربات فعال نیست")
+    row, reason = checker(uid, code.strip()[:40])
+    if not row: raise HTTPException(400, reason or "کد تخفیف نامعتبر است")
+    price = max(0, int(base) - int(base) * int(row["percent"]) // 100)
+    return price, int(base) - price, code.strip()[:40]
 
 async def cleanup_panel(b, pn, uname):
     fn = find_fn(b, DELETE_FN)
@@ -150,9 +126,22 @@ def panel_names(b):
     try: return {p["id"]: p["name"] for p in b.q("SELECT id,name FROM panels")}
     except Exception: return {}
 
+def test_settings(b):
+    try:
+        enabled = str(b.S("test_enabled")) == "1"
+        gb = float(b.S("test_gb") or TEST_GB)
+        days = int(float(b.S("test_days") or TEST_DAYS))
+        raw = str(b.S("test_panel") or "")
+        panel_id = int(raw) if raw.isdigit() else None
+        return enabled, gb, days, panel_id
+    except Exception:
+        return TEST_GB > 0 and TEST_DAYS > 0, TEST_GB, TEST_DAYS, None
+
 def features(b):
-    return {"renew": bool(find_fn(b, RENEW_FN)), "usage": bool(find_fn(b, USAGE_FN)), "discount": bool(find_fn(b, DISCOUNT_FN) or hasattr(b, "dc_price")),
-            "test": TEST_GB > 0 and TEST_DAYS > 0, "test_gb": TEST_GB, "test_days": TEST_DAYS}
+    enabled, gb, days, panel_id = test_settings(b)
+    return {"renew": bool(find_fn(b, RENEW_FN)), "usage": bool(find_fn(b, USAGE_FN)),
+            "discount": bool(getattr(b, "dc_check", None) and getattr(b, "dc_price", None)),
+            "test": enabled and gb > 0 and days > 0, "test_gb": gb, "test_days": days, "test_panel": panel_id}
 
 _bot_name = {"v": BOT_USERNAME}
 def bot_username():
@@ -196,14 +185,14 @@ def catalog(x_telegram_init_data: str | None = Header(default=None)):
         out.append({"id": p["id"], "months": p["months"], "gb": p["gb"], "days": p["days"], "price": price, "orig": p["price"]})
     svcs = user_services(b, uid, with_qr=False)   # QR جدا و فقط هنگام نیاز ساخته می‌شود (سرعت)
     return {"ok": True, "balance": int(dbu["balance"] or 0), "plans": out, "panels": [dict(x) for x in panels], "services": svcs,
-            "features": features(b), "has_test": any(s["is_test"] for s in svcs), "bot": bot_username(), "support": SUPPORT}
+            "features": features(b), "has_test": bool(int(dbu["test_used"] or 0)) or any(s["is_test"] for s in svcs), "bot": bot_username(), "support": SUPPORT}
 
 @app.get("/api/profile")
 def profile(x_telegram_init_data: str | None = Header(default=None)):
     u = auth(x_telegram_init_data); b = bot_module(); dbu = b.get_user(int(u["id"]))
     svcs = user_services(b, int(u["id"]), with_qr=False)
     return {"ok": True, "id": u["id"], "name": dbu["name"] or u.get("first_name", ""), "username": dbu["username"] or u.get("username", ""), "phone": dbu["phone"] or "",
-            "balance": int(dbu["balance"] or 0), "services": len(svcs), "active": sum(1 for s in svcs if s["status"] == "active"),
+            "balance": int(dbu["balance"] or 0), "services": len(svcs), "active": sum(1 for s in svcs if s["status"] == "active" and (not s["expire"] or int(s["expire"]) > int(time.time()))),
             "spent": sum(int(s["price"] or 0) for s in svcs if not s["is_test"]), "photo": u.get("photo_url", "")}
 
 @app.get("/api/service/{sid}")
@@ -257,20 +246,22 @@ async def buy(req: BuyRequest, x_telegram_init_data: str | None = Header(default
 
 @app.post("/api/test")
 async def free_test(req: TestRequest, x_telegram_init_data: str | None = Header(default=None)):
-    if not (TEST_GB > 0 and TEST_DAYS > 0): raise HTTPException(404, "اکانت تست فعال نیست")
     u = auth(x_telegram_init_data); b = bot_module(); uid = int(u["id"])
+    enabled, test_gb, test_days, configured_panel = test_settings(b)
+    if not enabled or test_gb <= 0 or test_days <= 0: raise HTTPException(404, "اکانت تست فعلاً غیرفعال است")
     async with user_lock(uid):
-        if b.q("SELECT id FROM services WHERE user_id=? AND is_test=1 LIMIT 1", (uid,), True): raise HTTPException(409, "قبلاً اکانت تست گرفتی")
-        pn = pick_panel(b, req.panel_id); uname = f"{b.USER_PREFIX}{uid}_t{b.secrets.token_hex(2)}"
-        try: res = await b.panel_create(pn, uname, TEST_GB, TEST_DAYS)
+        user = b.get_user(uid)
+        if int(user["test_used"] or 0): raise HTTPException(409, "قبلاً اکانت تست گرفتی")
+        pn = pick_panel(b, req.panel_id or configured_panel); uname = f"{b.USER_PREFIX}{uid}_t{b.secrets.token_hex(2)}"
+        try: res = await b.panel_create(pn, uname, test_gb, test_days)
         except Exception: log.exception("test create failed"); raise HTTPException(502, "ساخت اکانت تست ناموفق بود")
         now = int(time.time())
         try:
-            sid = b.ex("INSERT INTO services(user_id,plan_id,panel_id,username,link,sub,gb,days,price,created,expire,is_test,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,'active')", (uid,0,pn["id"],uname,res["link"],res["sub"],TEST_GB,TEST_DAYS,0,now,now+TEST_DAYS*86400))
+            sid = b.ex("INSERT INTO services(user_id,plan_id,panel_id,username,link,sub,gb,days,price,created,expire,is_test,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,'active')", (uid,0,pn["id"],uname,res["link"],res["sub"],test_gb,test_days,0,now,now+test_days*86400))
         except Exception:
             await cleanup_panel(b, pn, uname); raise HTTPException(502, "ثبت اکانت تست ناموفق بود")
-        return {"ok": True, "service": {"id": sid, "name": uname, "gb": TEST_GB, "days": TEST_DAYS, "price": 0, "link": res["link"], "sub": res["sub"], "qr": "",
-                "expire": now+TEST_DAYS*86400, "status": "active", "panel_id": pn["id"], "panel": pn["name"], "is_test": 1, "created": now}}
+        b.ex("UPDATE users SET test_used=1 WHERE id=?", (uid,))
+        return {"ok": True, "service": {"id": sid, "name": uname, "gb": test_gb, "days": test_days, "price": 0, "link": res["link"], "sub": res["sub"], "qr": "", "expire": now+test_days*86400, "status": "active", "panel_id": pn["id"], "panel": pn["name"], "is_test": 1, "created": now}}
 
 @app.post("/api/renew")
 async def renew(req: RenewRequest, x_telegram_init_data: str | None = Header(default=None)):
@@ -299,7 +290,7 @@ async def discount(req: DiscountRequest, x_telegram_init_data: str | None = Head
     u = auth(x_telegram_init_data); b = bot_module(); uid = int(u["id"])
     code = (req.code or "").strip()[:40]
     if not code: raise HTTPException(400, "کد را وارد کن")
-    if not find_fn(b, DISCOUNT_FN): raise HTTPException(501, "سیستم کد تخفیف ربات فعال نیست")
+    if not getattr(b, "dc_check", None): raise HTTPException(501, "سیستم کد تخفیف ربات فعال نیست")
     if req.plan_id:
         p = b.q("SELECT * FROM plans WHERE id=? AND active=1", (req.plan_id,), True)
         if not p: raise HTTPException(404, "پلن پیدا نشد")
