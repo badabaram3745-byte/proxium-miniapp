@@ -1,4 +1,4 @@
-NAYI Mini App · v4.3 tested package
+NAYI Mini App · v4.2 tested package
 
 ساختار اجرا:
 - bot.py در ریشه است.
