@@ -130,6 +130,30 @@
       <div id="transactionList" class="service-list"></div>
     </div>
 
+    <div id="view-topup" class="view">
+      <div class="head">
+        <div><small class="latin">WALLET GATEWAY</small><h2>شارژ کیف پول</h2></div>
+        <button class="ghost" type="button" data-go="profile">بازگشت</button>
+      </div>
+      <div class="topup-hero tilt">
+        <span class="topup-orb">◈</span>
+        <div><b>درگاه شارژ امن</b><small>پرداخت از مسیر رسمی ربات انجام می‌شود</small></div>
+        <span class="secure">SECURE</span>
+      </div>
+      <p class="topup-note">مبلغ را انتخاب کن، بعد وارد ربات می‌شوی و رسید پرداختت همان‌جا ثبت می‌شود.</p>
+      <div class="amount-grid">
+        <button type="button" class="amount" data-topup="100000"><b class="num">100K</b><small>تومان</small></button>
+        <button type="button" class="amount featured" data-topup="250000"><i>پیشنهادی</i><b class="num">250K</b><small>تومان</small></button>
+        <button type="button" class="amount" data-topup="500000"><b class="num">500K</b><small>تومان</small></button>
+        <button type="button" class="amount" data-topup="1000000"><b class="num">1M</b><small>تومان</small></button>
+      </div>
+      <div class="topup-actions">
+        <button type="button" class="cta wide" data-act="topup-bot">ادامه در ربات <span>↗</span></button>
+        <button type="button" class="ghost wide" data-act="copy-card">کپی اطلاعات کارت</button>
+      </div>
+      <p class="topup-foot">اگر مبلغ دیگری می‌خواهی، داخل ربات گزینه «مبلغ دلخواه» را بزن.</p>
+    </div>
+
     <!-- PROFILE -->
     <div id="view-profile" class="view">
       <div class="head"><div><small class="latin">IDENTITY NODE</small><h2>پروفایل</h2></div></div>
@@ -145,7 +169,7 @@
           <div class="c-top"><span class="latin">NAYI WALLET</span><span class="chip-ic"></span></div>
           <small>موجودی کیف پول</small>
           <b id="profileBalance">—</b>
-          <div class="c-bot"><span class="latin" id="cardId">•••• ••••</span><button type="button" class="topup" data-act="topup">+ شارژ کیف پول</button></div>
+          <div class="c-bot"><span class="latin" id="cardId">•••• ••••</span><button type="button" class="topup" data-go="topup">+ شارژ کیف پول</button></div>
         </div>
       </div>
 

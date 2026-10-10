@@ -10,7 +10,7 @@ const PAGE = 6;
 
 const S = { plans: [], panels: [], services: [], balance: 0, month: null, selected: null, panelId: null, view: 'shop',
   busy: false, loaded: false, features: {}, hasTest: false, filter: 'all', shown: PAGE, guideOs: null, renewSvc: null, renewPlan: null,
-  discount: null, me: null, bot: '', support: '', tx: [] };
+  discount: null, me: null, bot: '', support: '', tx: [], topupAmount: 250000 };
 
 /* ---------- helpers ---------- */
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -285,6 +285,10 @@ function renderTransactions() {
   list.innerHTML = S.tx.map(x => `<article class="svc"><div class="svc-top"><span class="svc-flag">${x.kind === 'renew' ? '↻' : '✦'}</span><div class="svc-id"><b>${x.kind === 'renew' ? 'تمدید سرویس' : 'خرید سرویس'}</b><small>${new Date((x.created || 0) * 1000).toLocaleString('en-GB')}</small></div><span class="tag ok num">${num(x.amount)} تومان</span></div></article>`).join('');
 }
 
+function renderTopup() {
+  $$('.amount').forEach(b => b.classList.toggle('on', Number(b.dataset.topup) === S.topupAmount));
+}
+
 /* ---------- guide ---------- */
 const APPS = {
   android: [{ n: 'v2rayNG', d: 'رایگان · متن‌باز', rec: 1, u: 'https://play.google.com/store/apps/details?id=com.v2ray.ang' }, { n: 'Hiddify', d: 'ساده و سریع', u: 'https://play.google.com/store/apps/details?id=app.hiddify.com' }],
@@ -330,9 +334,10 @@ function show(v) {
   $$('.view').forEach(x => x.classList.toggle('active', x.id === 'view-' + v));
   const idx = ['shop', 'services', 'guide', 'profile'].indexOf(v);
   $$('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
-  $('.tab-ink').style.transform = `translateX(${-idx * 100}%)`;
+  $('.tab-ink').style.transform = idx >= 0 ? `translateX(${-idx * 100}%)` : 'translateX(0)';
   if (v === 'services') renderServices();
   if (v === 'transactions') { loadTransactions().then(renderTransactions); }
+  if (v === 'topup') renderTopup();
   if (v === 'guide') renderGuide();
   if (v === 'profile') loadProfile();
   renderShop(); haptic('light');
@@ -349,6 +354,11 @@ async function removeService(id) {
   if (DEMO) { S.services = S.services.filter(x => x.id != id); renderServices(); return toast('در پیش‌نمایش حذف شد'); }
   try { await api('/api/service/' + id, { method: 'DELETE' }); S.services = S.services.filter(x => x.id != id); renderServices(); toast('سرویس از پنل و ربات حذف شد ✓'); }
   catch (e) { toast(e.message, 'err'); }
+}
+
+function topupBot() {
+  if (DEMO) return toast('پیش‌نمایشه؛ شارژ واقعی داخل ربات انجام می‌شود', 'err');
+  openBot();
 }
 function goBack() {
   if (sheetOpen()) return closeSheets();
@@ -549,6 +559,9 @@ document.addEventListener('click', e => {
   if (d.act === 'back') return goBack();
   if (d.act === 'reload') return load();
   if (d.act === 'topup' || d.act === 'bot') return openBot();
+  if (d.act === 'topup-bot') return topupBot();
+  if (d.act === 'copy-card') return toast('اطلاعات کارت را از داخل ربات بردار', 'err');
+  if (d.topup) { S.topupAmount = Number(d.topup); renderTopup(); haptic('light'); return; }
   if (d.act === 'support') return S.support ? openLink(S.support.startsWith('http') ? S.support : 'https://t.me/' + S.support.replace('@', '')) : toast('پشتیبانی فعلاً در دسترس نیست', 'err');
   if (t.hasAttribute('data-close')) return closeSheets();
 });
