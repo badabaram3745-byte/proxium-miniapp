@@ -10,7 +10,7 @@ const PAGE = 6;
 
 const S = { plans: [], panels: [], services: [], balance: 0, month: null, selected: null, panelId: null, view: 'shop',
   busy: false, loaded: false, features: {}, hasTest: false, filter: 'all', shown: PAGE, guideOs: null, renewSvc: null, renewPlan: null,
-  discount: null, me: null, bot: '', support: '', tx: [], topupAmount: 250000 };
+  discount: null, me: null, bot: '', support: '', tx: [], topupAmount: 250000, awaitingWallet: false };
 
 /* ---------- helpers ---------- */
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -360,6 +360,7 @@ function topupBot() {
   if (DEMO) return toast('پیش‌نمایشه؛ شارژ واقعی داخل ربات انجام می‌شود', 'err');
   const u = S.bot ? `https://t.me/${S.bot}?start=topup_${encodeURIComponent(S.topupAmount)}` : '';
   if (!u) return toast('لینک ربات پیدا نشد', 'err');
+  S.awaitingWallet = true;
   try { tg?.openTelegramLink ? tg.openTelegramLink(u) : window.open(u, '_blank'); } catch (_) { window.open(u, '_blank'); }
 }
 function goBack() {
@@ -539,6 +540,20 @@ async function load(silent) {
   loadProfile();
 }
 
+async function refreshWallet() {
+  if (DEMO) return;
+  try {
+    const d = await api('/api/wallet');
+    if (Number.isFinite(Number(d.balance))) {
+      S.balance = Number(d.balance);
+      if (S.me) S.me.balance = S.balance;
+      paintWallet();
+      if (S.view === 'profile') $('#profileBalance').textContent = money(S.balance);
+      if (S.view === 'shop') renderShop();
+    }
+  } catch (_) {}
+}
+
 /* ---------- events (delegated) ---------- */
 document.addEventListener('click', e => {
   const t = e.target.closest('button,[data-open]'); if (!t) return;
@@ -593,16 +608,23 @@ document.addEventListener('visibilitychange', async () => {
   }
   if (refreshOnReturn && !DEMO) {
     refreshOnReturn = false;
-    await load();
-    if (S.view === 'profile') await loadProfile();
+    await refreshWallet();
+    await loadProfile();
   }
 });
 window.addEventListener('focus', async () => {
   if (!DEMO && S.loaded) {
-    await load();
-    if (S.view === 'profile') await loadProfile();
+    await refreshWallet();
+    await loadProfile();
   }
 });
+tg?.onEvent?.('activated', async () => {
+  await refreshWallet();
+  await loadProfile();
+});
+setInterval(() => {
+  if (!DEMO && S.awaitingWallet) refreshWallet();
+}, 5000);
 
 /* ---------- boot ---------- */
 if (tg) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes?.(); } catch (_) {} }
