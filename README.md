@@ -1,12 +1,15 @@
 # Proxium Mini App, Railway-ready
 
-This is one clean root project. Do not deploy a nested copy.
+نسخه به‌روزشده بدون حذف ظاهر قبلی: تم دریایی مستقل‌تر، چیدمان مرتب‌تر، تاریخچه تراکنش‌ها و حذف واقعی سرویس از پنل و ربات.
 
 ## Railway
-Set the service root to the repository root and redeploy with **Clear build cache** enabled once. Railway must install the root `requirements.txt`, then run `python -u run.py`.
+ریشه پروژه را Deploy کن، Root Directory را خالی بگذار و بعد از تغییرات یک بار Clear build cache بزن. متغیرهای `BOT_TOKEN` و `ADMIN_IDS` لازم‌اند. برای دیتای ماندگار، Volume روی `/data` و `DB_PATH=/data/bot.db` تنظیم کن.
 
-Required variables: `BOT_TOKEN`, `ADMIN_IDS`. Recommended: `DB_PATH=/data/bot.db` with a Railway Volume mounted at `/data`.
-
-The root app keeps the bot and Mini App in the same process. `/health` is served by FastAPI on Railway's `$PORT`.
-
-The Mini App keeps the existing visual design and adds the real bot-backed catalog, panel selection, discounts, test account, usage, renew, QR and Telegram authentication.
+## قابلیت‌های جدید
+- دکمه چهارم «حذف» داخل سرویس‌ها
+- تأیید قبل از حذف
+- حذف از پنل واقعی و سپس تغییر وضعیت در دیتابیس ربات
+- اگر حذف پنل شکست بخورد، سرویس از ربات پاک نمی‌شود
+- تاریخچه تراکنش‌های خرید و تمدید
+- ظاهر دریایی با کارت‌ها، پس‌زمینه و رنگ‌بندی مستقل
+- انتخاب چند پنل، تست، تخفیف، مصرف، تمدید، QR و پروفایل حفظ شده‌اند
