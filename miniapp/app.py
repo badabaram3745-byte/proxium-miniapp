@@ -41,6 +41,9 @@ class DiscountRequest(BaseModel):
     code: str
     plan_id: int | None = None
 
+class DeleteRequest(BaseModel):
+    service_id: int
+
 def user_from_init(init_data: str):
     if not BOT_TOKEN or not init_data: raise HTTPException(401, "Telegram init data is required")
     pairs = dict(parse_qsl(init_data, keep_blank_values=True)); received = pairs.pop("hash", "")
@@ -211,6 +214,27 @@ async def service_detail(sid: int, x_telegram_init_data: str | None = Header(def
                                 "expire": res.get("expire"), "online": res.get("online") or res.get("online_at")}
         except Exception: log.exception("usage fetch failed")
     return out
+
+@app.get("/api/transactions")
+def transactions(x_telegram_init_data: str | None = Header(default=None)):
+    u = auth(x_telegram_init_data); b = bot_module(); uid = int(u["id"])
+    rows = b.q("SELECT kind, amount, discount, code, created FROM txlog WHERE user_id=? ORDER BY created DESC LIMIT 30", (uid,))
+    return {"ok": True, "items": [dict(r) for r in rows]}
+
+@app.delete("/api/service/{sid}")
+async def delete_service(sid: int, x_telegram_init_data: str | None = Header(default=None)):
+    u = auth(x_telegram_init_data); b = bot_module(); uid = int(u["id"])
+    async with user_lock(uid):
+        s = b.q("SELECT * FROM services WHERE id=? AND user_id=? AND status!='deleted'", (sid, uid), True)
+        if not s: raise HTTPException(404, "سرویس پیدا نشد")
+        pn = b.q("SELECT * FROM panels WHERE id=?", (col(s, "panel_id"),), True)
+        if pn and pn["ptype"] != "manual" and s["status"] != "pending":
+            fn = find_fn(b, DELETE_FN)
+            if not fn: raise HTTPException(501, "حذف از پنل فعال نیست")
+            try: await call(fn, pn, s["username"])
+            except Exception: raise HTTPException(502, "حذف از پنل ناموفق بود؛ سرویس از ربات حذف نشد")
+        b.ex("UPDATE services SET status='deleted' WHERE id=?", (sid,))
+        return {"ok": True, "id": sid}
 
 @app.post("/api/buy")
 async def buy(req: BuyRequest, x_telegram_init_data: str | None = Header(default=None)):
