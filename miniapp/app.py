@@ -165,7 +165,7 @@ def user_services(b, uid, with_qr=True):
     names = panel_names(b)
     return [{"id": r["id"], "name": r["username"], "gb": r["gb"], "days": r["days"], "expire": r["expire"], "status": r["status"], "link": r["link"] or "", "sub": r["sub"] or "",
              "qr": qr_data(r["link"] or r["sub"] or "") if with_qr else "",
-             "panel_id": col(r, "panel_id"), "panel": names.get(col(r, "panel_id"), ""), "is_test": int(col(r, "is_test", 0) or 0), "created": col(r, "created"), "price": col(r, "price", 0)} for r in rows]
+             "panel_id": col(r, "panel_id"), "panel": names.get(col(r, "panel_id"), ""), "is_test": int(col(r, "is_test", 0) or 0), "created": col(r, "created"), "price": col(r, "price", 0), "title": col(r, "title") or ""} for r in rows]
 
 @app.get("/")
 def index(): return FileResponse(ROOT / "static" / "index.html", headers={"Cache-Control": "no-cache"})
@@ -330,3 +330,17 @@ async def discount(req: DiscountRequest, x_telegram_init_data: str | None = Head
         return {"ok": True, "code": code, "price": price, "discount": amount}
     _pending_discount[uid] = {"code": code}
     return {"ok": True, "code": code}
+
+
+# ---------- v5 additions (only new routes; nothing above is changed) ----------
+try:
+    from miniapp.extras import router as _extras_router
+    app.include_router(_extras_router)
+except Exception:
+    log.exception("mini app extras could not be loaded")
+try:
+    from miniapp.admin_panel import router as _panel_router
+    app.include_router(_panel_router)
+except Exception:
+    log.exception("web admin panel could not be loaded")
+
