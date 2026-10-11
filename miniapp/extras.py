@@ -291,7 +291,10 @@ def _ip_lookup(ip):
 
 @router.get("/api/x/ip")
 async def ip_info(request: Request, x_telegram_init_data: str | None = Header(default=None)):
-    ctx(x_telegram_init_data)
+    # This endpoint is intentionally readable without Telegram headers so it can
+    # be tested from a normal browser. The mini-app still sends init-data.
+    if x_telegram_init_data:
+        ctx(x_telegram_init_data)
     ip = _client_ip(request)
     if not ip: raise HTTPException(500, "IP پیدا نشد")
     d = await asyncio.to_thread(_ip_lookup, ip)
