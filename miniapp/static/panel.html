@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>پنل مدیریت</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;900&family=Space+Grotesk:wght@500;700&display=swap">
+<link rel="stylesheet" href="/static/panel.css?v=1">
+</head>
+<body>
+<div id="login" class="login hidden">
+  <form id="loginForm" class="login-card" autocomplete="on">
+    <span class="logo">◈</span>
+    <h1>پنل مدیریت</h1>
+    <p>سامانه کنترل ربات فروش اشتراک</p>
+    <input id="lu" name="username" placeholder="نام کاربری" autocomplete="username" required>
+    <input id="lp" name="password" type="password" placeholder="رمز عبور" autocomplete="current-password" required>
+    <button type="submit" class="btn primary">ورود</button>
+    <small id="loginErr" class="err"></small>
+  </form>
+</div>
+
+<div id="shell" class="shell hidden">
+  <aside class="side">
+    <div class="brand"><span>◈</span><b>پنل مدیریت</b></div>
+    <nav id="nav">
+      <button data-tab="dash" class="on">📊 داشبورد</button>
+      <button data-tab="pay">🧾 رسیدها <em id="badgePay" class="badge hidden"></em></button>
+      <button data-tab="users">👥 کاربران</button>
+      <button data-tab="svc">📦 سرویس‌ها</button>
+      <button data-tab="tk">🎫 تیکت‌ها <em id="badgeTk" class="badge hidden"></em></button>
+      <button data-tab="plans">🗂 پلن‌ها</button>
+      <button data-tab="panels">🔌 پنل‌ها</button>
+      <button data-tab="dc">🎟 کد تخفیف</button>
+      <button data-tab="bc">📢 پیام همگانی</button>
+      <button data-tab="set">⚙️ تنظیمات</button>
+      <button data-tab="log">📚 تراکنش و لاگ</button>
+    </nav>
+    <button id="logout" class="btn ghost">خروج</button>
+  </aside>
+
+  <main class="main">
+    <!-- dashboard -->
+    <section id="t-dash" class="tab on">
+      <h2>داشبورد</h2>
+      <div id="kpis" class="kpis"></div>
+      <div class="card"><h3>۱۴ روز اخیر</h3><div id="chart" class="chart"></div><div class="legend"><span class="l1">فروش سرویس</span><span class="l2">شارژ کیف پول</span></div></div>
+    </section>
+
+    <!-- payments -->
+    <section id="t-pay" class="tab">
+      <div class="bar"><h2>رسیدها</h2>
+        <div class="seg" id="paySeg"><button data-st="pending" class="on">در انتظار</button><button data-st="ok">تأییدشده</button><button data-st="rejected">ردشده</button></div></div>
+      <div id="payList" class="list"></div>
+    </section>
+
+    <!-- users -->
+    <section id="t-users" class="tab">
+      <div class="bar"><h2>کاربران</h2><form id="userSearch" class="search"><input id="uq" placeholder="آیدی، یوزرنیم، نام یا شماره"><button class="btn">جستجو</button></form></div>
+      <div id="userList" class="list"></div>
+    </section>
+
+    <!-- services -->
+    <section id="t-svc" class="tab">
+      <div class="bar"><h2>سرویس‌ها</h2><form id="svcSearch" class="search"><input id="sq" placeholder="نام سرویس یا آیدی کاربر"><select id="sst"><option value="">همه</option><option value="active">فعال</option><option value="pending">در انتظار</option><option value="expired">منقضی</option><option value="disabled">غیرفعال</option></select><button class="btn">جستجو</button></form></div>
+      <div id="svcList" class="list"></div>
+    </section>
+
+    <!-- tickets -->
+    <section id="t-tk" class="tab">
+      <div class="bar"><h2>تیکت‌ها</h2><div class="seg" id="tkSeg"><button data-st="open" class="on">باز</button><button data-st="closed">بسته</button></div></div>
+      <div class="split"><div id="tkList" class="list"></div><div id="tkView" class="card thread"><p class="muted">یک تیکت را انتخاب کن.</p></div></div>
+    </section>
+
+    <!-- plans -->
+    <section id="t-plans" class="tab">
+      <h2>پلن‌ها</h2>
+      <form id="planAdd" class="card inline"><input name="months" type="number" min="1" placeholder="ماه" required><input name="gb" type="number" min="1" placeholder="گیگ" required><input name="days" type="number" min="1" placeholder="روز" required><input name="price" type="number" min="0" placeholder="قیمت (تومان)" required><button class="btn primary">افزودن پلن</button></form>
+      <div id="planList" class="list"></div>
+    </section>
+
+    <!-- panels -->
+    <section id="t-panels" class="tab">
+      <h2>پنل‌ها</h2>
+      <p class="muted">افزودن و ویرایش اطلاعات اتصال پنل از داخل ربات انجام می‌شود (رمزها اینجا نمایش داده نمی‌شوند).</p>
+      <div id="panelList" class="list"></div>
+    </section>
+
+    <!-- discounts -->
+    <section id="t-dc" class="tab">
+      <h2>کدهای تخفیف</h2>
+      <form id="dcAdd" class="card inline"><input name="code" placeholder="کد" required maxlength="40"><input name="percent" type="number" min="1" max="100" placeholder="درصد" required><input name="max_uses" type="number" min="0" placeholder="سقف استفاده (۰ = نامحدود)"><button class="btn primary">ساخت کد</button></form>
+      <div id="dcList" class="list"></div>
+    </section>
+
+    <!-- broadcast -->
+    <section id="t-bc" class="tab">
+      <h2>پیام همگانی</h2>
+      <form id="bcForm" class="card"><textarea id="bcText" rows="6" maxlength="4000" placeholder="متن پیام برای همه کاربران (به جز مسدودها)"></textarea><button class="btn primary">ارسال برای همه</button><p id="bcState" class="muted"></p></form>
+    </section>
+
+    <!-- settings -->
+    <section id="t-set" class="tab">
+      <h2>تنظیمات</h2>
+      <p class="muted">همان تنظیمات داخل ربات؛ تغییرات بلافاصله در ربات و مینی‌اپ اعمال می‌شود. برای خالی کردن، <code>-</code> بنویس.</p>
+      <div id="setList" class="list"></div>
+    </section>
+
+    <!-- logs -->
+    <section id="t-log" class="tab">
+      <div class="bar"><h2>تراکنش و لاگ</h2><div class="seg" id="logSeg"><button data-k="transactions" class="on">تراکنش‌ها</button><button data-k="audit">لاگ ادمین‌ها</button></div></div>
+      <div id="logList" class="list"></div>
+    </section>
+  </main>
+</div>
+
+<!-- user drawer -->
+<div id="drawer" class="drawer" aria-hidden="true"><div class="drawer-in" id="drawerIn"></div></div>
+<div id="toast" class="toast"></div>
+<script src="/static/panel.js?v=1"></script>
+</body>
+</html>

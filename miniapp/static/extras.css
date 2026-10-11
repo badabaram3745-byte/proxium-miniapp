@@ -1,0 +1,48 @@
+/* NAYI Mini App · v5 extras · uses the same theme variables as style.css (space / ocean / dawn) */
+.x-card{margin-top:18px;padding:16px;border-radius:var(--r,20px);border:1px solid var(--line-strong);background:var(--card);display:grid;gap:12px}
+.x-card-head{display:grid;gap:2px}
+.x-card-head small{font-size:11px;letter-spacing:.2em;color:var(--accent)}
+.x-card-head b{font-size:17px;font-weight:800}
+.x-cardno{display:grid;gap:4px;width:100%;padding:14px;border-radius:14px;border:1px dashed var(--line-strong);background:var(--shade);text-align:center}
+.x-cardno span{font:700 21px var(--fl,inherit);letter-spacing:.08em;direction:ltr;color:var(--text)}
+.x-cardno small{font-size:13px;color:var(--muted)}
+.x-field{display:grid;gap:6px;font-size:14px;color:var(--muted)}
+.x-field input,.x-input,.x-compose textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--shade);font-size:16px;color:var(--text)}
+.x-field input{direction:ltr;text-align:center;font-weight:700;letter-spacing:.04em}
+.x-field input:focus,.x-input:focus,.x-compose textarea:focus{outline:none;border-color:var(--accent)}
+.x-check{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text)}
+.x-check input{width:18px;height:18px;accent-color:var(--accent)}
+.x-pick{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;border-radius:14px;border:1px dashed var(--line);background:var(--shade);cursor:pointer;font-size:15px;transition:border-color .2s}
+.x-pick span{font-size:20px}
+.x-pick.on{border-style:solid;border-color:var(--ok);color:var(--ok)}
+.x-pays{display:grid;gap:6px}
+.x-pay{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--shade);font-size:14px}
+.x-pay>span:first-child{color:var(--dim)}
+.x-pay b{flex:1;font-weight:700}
+.x-pay b small{color:var(--ok);font-weight:500}
+.x-acts{grid-template-columns:repeat(2,1fr)}
+.x-tk{display:flex;align-items:center;gap:12px;width:100%;padding:14px;border-radius:var(--r,20px);border:1px solid var(--line);background:var(--card);text-align:right;color:var(--text)}
+.x-tk div{flex:1;min-width:0;display:grid;gap:3px}
+.x-tk b{font-size:15px}
+.x-tk small{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.x-tk i{font-style:normal;font-size:12px;color:var(--dim)}
+.x-new{font-style:normal;font-size:11px;padding:2px 8px;border-radius:99px;background:var(--accent);color:var(--accent-ink);margin-inline-start:6px}
+.x-compose{display:grid;gap:8px;margin-top:14px}
+.x-compose textarea{resize:vertical;min-height:72px;line-height:1.8;font-family:inherit}
+.x-thread{display:flex;flex-direction:column;gap:10px;max-height:56vh;overflow:auto;padding:4px 2px}
+.x-msg{max-width:84%;padding:10px 14px;border-radius:16px;font-size:15px;line-height:1.8}
+.x-msg p{margin:0;white-space:pre-wrap;word-break:break-word}
+.x-msg small{display:block;margin-top:4px;font-size:11px;opacity:.7}
+.x-msg.me{align-self:flex-start;background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--accent-ink);border-bottom-right-radius:4px}
+.x-msg.them{align-self:flex-end;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:4px}
+.x-closetk{width:100%;margin-top:10px;color:var(--bad)}
+.x-ref{margin:14px 0 10px}
+.x-ip-hero{display:flex;align-items:center;gap:12px;padding:18px;border-radius:var(--r,20px);border:1px solid var(--line-strong);background:var(--card)}
+.x-ip-hero span{font-size:34px}
+.x-ip-hero b{flex:1;font-size:20px;direction:ltr;text-align:left;word-break:break-all}
+.x-dl{display:grid;gap:0;margin:12px 0 0;border-radius:var(--r,20px);border:1px solid var(--line);background:var(--card);overflow:hidden}
+.x-dl div{display:flex;justify-content:space-between;gap:12px;padding:12px 16px;font-size:14px}
+.x-dl div+div{border-top:1px solid var(--line)}
+.x-dl dt{color:var(--muted)} .x-dl dd{margin:0;font-weight:700;text-align:left}
+.x-sheet-txt{margin:0 0 14px;color:var(--muted);font-size:14px;line-height:1.8}
+.x-input{text-align:center;margin-bottom:6px}

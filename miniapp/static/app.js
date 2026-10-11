@@ -255,7 +255,7 @@ function renderServices() {
     const cfg = [s.link && ['کانفیگ', s.link], s.sub && ['لینک ساب', s.sub]].filter(Boolean);
     return `<article class="svc" data-sid="${s.id}">
       <div class="svc-top"><span class="svc-flag">${flag(s.panel)}</span>
-        <div class="svc-id"><b class="latin">${esc(s.name || 'NAYI')}</b><small>${esc(s.panel || '')}${s.is_test ? ' · تست' : ''}</small></div>
+        <div class="svc-id">${s.title ? `<b>${esc(s.title)}</b><small class="latin">${esc(s.name || '')}</small><small>${esc(s.panel || '')}${s.is_test ? ' · تست' : ''}</small>` : `<b class="latin">${esc(s.name || 'NAYI')}</b><small>${esc(s.panel || '')}${s.is_test ? ' · تست' : ''}</small>`}</div>
         <span class="tag ${s.is_test ? 'test' : st.cls}">${s.is_test ? 'تست' : st.txt}</span></div>
       ${left != null ? `<div class="meter ${pct < 20 ? 'low' : ''}"><i style="width:${pct}%"></i></div>
         <div class="meter-l"><span><span class="num">${num(left)}</span> روز باقی‌مانده</span><span class="num">${pct}%</span></div>` : ''}
@@ -271,6 +271,7 @@ function renderServices() {
         ${S.features.renew && !s.is_test ? `<button type="button" data-renew="${s.id}"><span>↻</span>تمدید</button>` : `<button type="button" data-go="guide"><span>📖</span>راهنما</button>`}
         <button type="button" data-delete="${s.id}"><span>⌫</span>حذف</button>
       </div>
+      ${s.status !== 'deleted' ? `<div class="acts x-acts"><button type="button" data-rename="${s.id}"><span>✎</span>تغییر نام</button><button type="button" data-transfer="${s.id}"><span>⇄</span>انتقال</button></div>` : ''}
       <div class="qr-box" id="qr-${s.id}"></div>
     </article>`;
   }).join('');
@@ -577,7 +578,7 @@ document.addEventListener('click', e => {
   if (d.act === 'reload') return load();
   if (d.act === 'topup' || d.act === 'bot') return openBot();
   if (d.act === 'topup-bot') return topupBot();
-  if (d.act === 'copy-card') return toast('اطلاعات کارت را از داخل ربات بردار', 'err');
+  if (d.act === 'copy-card') return window.NAYI_X?.copyCard ? window.NAYI_X.copyCard() : toast('اطلاعات کارت را از داخل ربات بردار', 'err');
   if (d.topup) { S.topupAmount = Number(d.topup); renderTopup(); haptic('light'); return; }
   if (d.act === 'support') return S.support ? openLink(S.support.startsWith('http') ? S.support : 'https://t.me/' + S.support.replace('@', '')) : toast('پشتیبانی فعلاً در دسترس نیست', 'err');
   if (t.hasAttribute('data-close')) return closeSheets();

@@ -8,7 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;800;900&family=Space+Grotesk:wght@500;700&display=swap">
-<link rel="stylesheet" href="/static/style.css?v=4">
+<link rel="stylesheet" href="/static/style.css?v=6">
+<link rel="stylesheet" href="/static/extras.css?v=6">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -152,6 +153,67 @@
         <button type="button" class="ghost wide" data-act="copy-card">کپی اطلاعات کارت</button>
       </div>
       <p class="topup-foot">اگر مبلغ دیگری می‌خواهی، داخل ربات گزینه «مبلغ دلخواه» را بزن.</p>
+
+      <!-- v5: card-to-card top-up right inside the Mini App -->
+      <div id="xCard" class="x-card hidden">
+        <div class="x-card-head"><small class="latin">IN-APP CARD TRANSFER</small><b>یا همین‌جا کارت‌به‌کارت کن</b></div>
+        <button type="button" class="x-cardno" data-xact="copy-no"><span class="latin" id="xCardNo">—</span><small>به نام <b id="xCardOwner">—</b> · برای کپی بزن ⧉</small></button>
+        <label class="x-field"><span>مبلغ (تومان)</span><input id="xAmount" inputmode="numeric" autocomplete="off" placeholder="مثلاً 250,000"></label>
+        <label class="x-check hidden" id="xGiftRow"><input type="checkbox" id="xGift"><span id="xGiftTxt">شارژ ویژه با هدیه</span></label>
+        <label class="x-pick" id="xPick"><input type="file" id="xFile" accept="image/*" hidden><span>📸</span><b id="xFileName">انتخاب عکس رسید</b></label>
+        <button type="button" class="cta wide" id="xSend"><span>ارسال رسید برای بررسی</span></button>
+        <div id="xPays" class="x-pays hidden"></div>
+        <p class="topup-foot">بعد از تأیید ادمین، موجودی ربات و مینی‌اپ با هم به‌روز می‌شود.</p>
+      </div>
+    </div>
+
+    <!-- v5: support tickets -->
+    <div id="view-tickets" class="view">
+      <div class="head">
+        <div><small class="latin">SUPPORT DESK</small><h2>تیکت‌های پشتیبانی</h2></div>
+        <button class="ghost" type="button" data-go="profile">بازگشت</button>
+      </div>
+      <div id="xTicketList" class="service-list"></div>
+      <form id="xTicketForm" class="x-compose" autocomplete="off">
+        <textarea id="xTicketInput" maxlength="2000" rows="3" placeholder="مشکل یا سؤالت را بنویس…" aria-label="متن تیکت"></textarea>
+        <button type="submit" class="cta wide"><span>ارسال به پشتیبانی</span></button>
+      </form>
+    </div>
+    <div id="view-ticket" class="view">
+      <div class="head">
+        <div><small class="latin">THREAD</small><h2 id="xThreadTitle">تیکت</h2></div>
+        <button class="ghost" type="button" data-xact="tk-back">بازگشت</button>
+      </div>
+      <div id="xThread" class="x-thread"></div>
+      <p id="xClosedNote" class="topup-foot hidden">این تیکت بسته شده؛ برای سؤال جدید یک تیکت تازه باز کن.</p>
+      <form id="xReplyForm" class="x-compose" autocomplete="off">
+        <textarea id="xReplyInput" maxlength="2000" rows="2" placeholder="پاسخ تو…" aria-label="پاسخ"></textarea>
+        <button type="submit" class="cta wide"><span>ارسال پاسخ</span></button>
+      </form>
+      <button type="button" class="ghost wide x-closetk" id="xCloseTk" data-xact="close-tk">بستن تیکت</button>
+    </div>
+
+    <!-- v5: referral -->
+    <div id="view-referral" class="view">
+      <div class="head">
+        <div><small class="latin">INVITE ORBIT</small><h2>دعوت دوستان</h2></div>
+        <button class="ghost" type="button" data-go="profile">بازگشت</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><small>پاداش از هر شارژ</small><b id="xRefPct" class="num">—</b></div>
+        <div class="stat"><small>زیرمجموعه‌ها</small><b id="xRefCount" class="num">—</b></div>
+      </div>
+      <div class="cfg x-ref"><code id="xRefLink">—</code><button type="button" class="mini" data-xact="copy-ref">کپی</button></div>
+      <button type="button" class="cta wide" data-xact="share-ref"><span>ارسال لینک برای دوستان ↗</span></button>
+    </div>
+
+    <!-- v5: IP info -->
+    <div id="view-ip" class="view">
+      <div class="head">
+        <div><small class="latin">CONNECTION PROBE</small><h2>اطلاعات IP من</h2></div>
+        <button class="ghost" type="button" data-xact="ip-reload">بررسی دوباره ⟳</button>
+      </div>
+      <div id="xIpBox"></div>
     </div>
 
     <!-- PROFILE -->
@@ -180,6 +242,12 @@
       </div>
       <div class="rows">
         <button type="button" class="row" data-go="transactions"><span>🧾</span>تاریخچه تراکنش‌ها<i>‹</i></button>
+        <button type="button" class="row" data-go="topup"><span>💳</span>شارژ کیف پول<i>‹</i></button>
+      </div>
+      <div class="rows">
+        <button type="button" class="row" data-go="tickets"><span>🎫</span>تیکت‌های پشتیبانی<i>‹</i></button>
+        <button type="button" class="row" data-go="referral"><span>🤝</span>دعوت دوستان<i>‹</i></button>
+        <button type="button" class="row" data-go="ip"><span>📍</span>اطلاعات IP من<i>‹</i></button>
       </div>
 
       <div class="rows">
@@ -187,7 +255,7 @@
         <button type="button" class="row" data-act="support" id="supportRow"><span>💬</span>پشتیبانی<i>‹</i></button>
         <button type="button" class="row" data-act="bot"><span>🤖</span>بازگشت به ربات<i>‹</i></button>
       </div>
-      <p class="hint latin">NAYI MINI APP · v4</p>
+      <p class="hint latin">NAYI MINI APP · v5</p>
     </div>
   </section>
 
@@ -243,6 +311,19 @@
     </div>
   </div>
 
+  <!-- v5: rename / transfer sheet -->
+  <div id="xSheet" class="sheet-wrap" aria-hidden="true">
+    <form class="sheet" id="xSheetForm" role="dialog" aria-modal="true" autocomplete="off">
+      <span class="grab"></span>
+      <button class="x" data-xclose type="button" aria-label="بستن">×</button>
+      <small class="latin" id="xSheetSmall">EDIT</small>
+      <h2 id="xSheetTitle">—</h2>
+      <p class="x-sheet-txt" id="xSheetText"></p>
+      <input id="xSheetInput" class="x-input" aria-label="مقدار">
+      <button id="xSheetGo" type="submit" class="cta wide"><span>ثبت</span></button>
+    </form>
+  </div>
+
   <!-- success -->
   <div id="success" class="success" aria-hidden="true">
     <div class="burst" id="burst"></div>
@@ -255,6 +336,7 @@
     </div>
   </div>
 </main>
-<script src="/static/app.js?v=5"></script>
+<script src="/static/app.js?v=6"></script>
+<script src="/static/extras.js?v=6"></script>
 </body>
 </html>
