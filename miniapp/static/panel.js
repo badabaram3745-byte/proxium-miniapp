@@ -32,6 +32,9 @@ $('#loginForm').addEventListener('submit', async e => {
   try { await api('login', { username: $('#lu').value, password: $('#lp').value }); $('#lp').value = ''; showShell(); }
   catch (err) { $('#loginErr').textContent = err.message; }
 });
+$('#menuToggle')?.addEventListener('click', () => $('#shell').classList.toggle('menu-open'));
+$('#mobileShade')?.addEventListener('click', () => $('#shell').classList.remove('menu-open'));
+$('#quickRefresh')?.addEventListener('click', () => LOAD[cur]?.());
 $('#logout').addEventListener('click', async () => { try { await api('logout', {}); } catch (_) {} showLogin(); });
 
 /* ---------- nav ---------- */
@@ -39,6 +42,7 @@ const LOAD = { dash: loadDash, pay: loadPay, users: loadUsers, svc: loadSvc, tk:
 let cur = 'dash';
 function go(t) {
   cur = t;
+  $('#shell').classList.remove('menu-open');
   $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   $$('.tab').forEach(s => s.classList.toggle('on', s.id === 't-' + t));
   LOAD[t]?.();

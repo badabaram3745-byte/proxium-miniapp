@@ -41,10 +41,14 @@
   </aside>
 
   <main class="main">
+    <header class="topbar">
+      <div class="topbar-title"><button id="menuToggle" class="menu-toggle" aria-label="باز کردن منو">☰</button><div><small>CONTROL CENTER</small><h1>مرکز مدیریت</h1></div></div>
+      <div class="topbar-actions"><span class="live-dot"></span><span class="muted">سیستم آنلاین</span><button id="quickRefresh" class="btn ghost">↻ بروزرسانی</button></div>
+    </header>
     <!-- dashboard -->
     <section id="t-dash" class="tab on">
       <h2>داشبورد</h2>
-      <div id="kpis" class="kpis"></div>
+      <div class="hero-strip"><div><small>وضعیت امروز</small><h3>عملیات ربات در یک نگاه</h3><p class="muted">فروش، شارژ، کاربران و زیرساخت را از همین‌جا کنترل کن.</p></div><div class="hero-orb">✦</div></div><div id="kpis" class="kpis"></div>
       <div class="card"><h3>۱۴ روز اخیر</h3><div id="chart" class="chart"></div><div class="legend"><span class="l1">فروش سرویس</span><span class="l2">شارژ کیف پول</span></div></div>
     </section>
 
@@ -113,6 +117,7 @@
       <div id="logList" class="list"></div>
     </section>
   </main>
+<div id="mobileShade" class="mobile-shade"></div>
 </div>
 
 <!-- user drawer -->
