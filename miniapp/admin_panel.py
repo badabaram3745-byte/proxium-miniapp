@@ -1,6 +1,6 @@
 # NAYI web admin panel (/panel) · additive module, same database as the bot.
 # Enable with Railway variables: PANEL_USER (default admin) and PANEL_PASS (required). Optional PANEL_SECRET.
-import asyncio, base64, hashlib, hmac, html, json, logging, os, time
+import asyncio, re, base64, hashlib, hmac, html, json, logging, os, time
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
@@ -287,6 +287,26 @@ async def payment_approve(pid: int, request: Request):
         raise HTTPException(502, f"تأیید ناموفق بود: {str(e)[:200]}")
 
 
+@router.post("/panel/api/payments/{pid}/reapprove")
+async def payment_reapprove(pid: int, request: Request):
+    """Second look at a rejected receipt: reopen it and run the normal approve flow."""
+    guard(request, True); x = b()
+    pay = x.q("SELECT * FROM payments WHERE id=?", (pid,), True)
+    if not pay: raise HTTPException(404, "پرداخت پیدا نشد")
+    cur = x.CON.execute("UPDATE payments SET status='pending' WHERE id=? AND status IN ('rejected','error')", (pid,)); x.CON.commit()
+    if cur.rowcount != 1: raise HTTPException(409, "فقط رسیدهای ردشده قابل بررسی دوباره‌اند")
+    order_id = pay["order_id"] if "order_id" in pay.keys() else None
+    if order_id: x.ex("UPDATE card_orders SET status='pending',updated=? WHERE id=?", (int(time.time()), order_id))
+    try:
+        res = await payment_approve(pid, request)
+    except Exception:
+        x.ex("UPDATE payments SET status=? WHERE id=? AND status='pending'", (pay["status"], pid))
+        if order_id: x.ex("UPDATE card_orders SET status='rejected',updated=? WHERE id=?", (int(time.time()), order_id))
+        raise
+    audit("payment_reapprove", pid)
+    return res
+
+
 @router.post("/panel/api/payments/{pid}/reject")
 def payment_reject(pid: int, request: Request):
     guard(request, True); x = b()
@@ -302,16 +322,61 @@ def payment_reject(pid: int, request: Request):
 
 # ---------- services ----------
 @router.get("/panel/api/services")
-def services(request: Request, q: str = "", status: str = ""):
+def services(request: Request, q: str = "", status: str = "", offset: int = 0, limit: int = 50):
     guard(request); x = b(); args = []; where = ["s.status!='deleted'"]
-    if status in ("active", "pending", "expired", "disabled"): where.append("s.status=?"); args.append(status)
-    t = q.strip()
+    if status in ("active", "pending", "expired", "disabled", "limited"): where.append("s.status=?"); args.append(status)
+    t = q.strip().lstrip("@")
     if t:
         if t.isdigit(): where.append("(s.user_id=? OR s.id=?)"); args += [int(t), int(t)]
-        else: where.append("s.username LIKE ?"); args.append(f"%{t}%")
-    r = x.q("SELECT s.id,s.user_id,s.username,s.gb,s.days,s.price,s.created,s.expire,s.status,s.is_test,s.link,s.sub,p.name panel "
-            "FROM services s LEFT JOIN panels p ON p.id=s.panel_id WHERE " + " AND ".join(where) + " ORDER BY s.id DESC LIMIT 100", tuple(args))
-    return {"ok": True, "items": rows(r)}
+        else: where.append("(s.username LIKE ? OR u.username LIKE ? OR u.name LIKE ?)"); args += [f"%{t}%"] * 3
+    limit = max(1, min(int(limit or 50), 200)); offset = max(0, int(offset or 0))
+    base = "FROM services s LEFT JOIN panels p ON p.id=s.panel_id LEFT JOIN users u ON u.id=s.user_id WHERE " + " AND ".join(where)
+    total = (x.q("SELECT COUNT(*) c " + base, tuple(args), True) or {"c": 0})["c"]
+    r = x.q("SELECT s.id,s.user_id,s.username,s.gb,s.days,s.price,s.created,s.expire,s.status,s.is_test,s.link,s.sub,"
+            "p.name panel,u.name uname,u.username uuser " + base + " ORDER BY s.id DESC LIMIT ? OFFSET ?", tuple(args) + (limit, offset))
+    return {"ok": True, "items": rows(r), "total": total, "offset": offset, "limit": limit}
+
+
+async def _panel_set_active(x, pn, username, active):
+    """Enable/disable one user on the real panel (Marzban, Pasarguard, Marzneshin, 3x-UI family)."""
+    t = pn["ptype"]
+    async with x._http(pn) as c:
+        if t in ("marzban", "pasarguard"):
+            h = await x._token(c, pn)
+            r = await c.put(f"/api/user/{username}", json={"status": "active" if active else "disabled"}, headers=h)
+            if r.status_code >= 400: raise Exception(f"HTTP {r.status_code}: {r.text[:200]}")
+        elif t == "marzneshin":
+            h = await x._token(c, pn)
+            r = await c.post(f"/api/users/{username}/{'enable' if active else 'disable'}", headers=h)
+            if r.status_code >= 400: raise Exception(f"HTTP {r.status_code}: {r.text[:200]}")
+        elif t in getattr(x, "XUI_PREFIX", {}):
+            await x._xlogin(c, pn)
+            inb, inbound, client = await x._xui_find(c, t, pn, username)
+            if not client: raise Exception("کلاینت روی پنل پیدا نشد")
+            client["enable"] = bool(active)
+            r = await c.post(f"{x.XUI_PREFIX[t]}/updateClient/{x._xui_cid(inbound, client)}",
+                             data={"id": inb, "settings": json.dumps({"clients": [client]})})
+            j = r.json()
+            if not j.get("success"): raise Exception(j.get("msg") or "updateClient failed")
+        else:
+            raise Exception("نوع پنل پشتیبانی نمی‌شود")
+
+
+@router.post("/panel/api/services/{sid}/toggle")
+async def service_toggle(sid: int, request: Request):
+    guard(request, True); x = b()
+    s = x.q("SELECT * FROM services WHERE id=? AND status!='deleted'", (sid,), True)
+    if not s: raise HTTPException(404, "سرویس پیدا نشد")
+    if s["status"] == "pending": raise HTTPException(409, "این سرویس هنوز تحویل نشده")
+    enable = s["status"] == "disabled"
+    pn = x.q("SELECT * FROM panels WHERE id=?", (s["panel_id"],), True)
+    if pn and pn["ptype"] != "manual":
+        try: await _panel_set_active(x, pn, s["username"], enable)
+        except Exception as e: raise HTTPException(502, f"تغییر وضعیت روی پنل ناموفق بود: {str(e)[:150]}")
+    new = "active" if enable else "disabled"
+    x.ex("UPDATE services SET status=? WHERE id=?", (new, sid)); audit("service_" + ("enable" if enable else "disable"), sid)
+    tgapi.safe_send(s["user_id"], f"{'✅' if enable else '⛔️'} سرویس <code>{html.escape(s['username'])}</code> {'فعال' if enable else 'غیرفعال'} شد.")
+    return {"ok": True, "status": new}
 
 
 @router.post("/panel/api/services/{sid}/delete")
@@ -352,6 +417,8 @@ def plan_add(req: PlanReq, request: Request):
 
 class PlanEdit(BaseModel):
     price: int | None = None
+    gb: int | None = None
+    days: int | None = None
     active: bool | None = None
 
 
@@ -362,6 +429,12 @@ def plan_edit(pid: int, req: PlanEdit, request: Request):
     if req.price is not None:
         if req.price < 0: raise HTTPException(400, "قیمت نامعتبر")
         x.ex("UPDATE plans SET price=? WHERE id=?", (req.price, pid))
+    if req.gb is not None:
+        if req.gb <= 0: raise HTTPException(400, "حجم نامعتبر")
+        x.ex("UPDATE plans SET gb=? WHERE id=?", (req.gb, pid))
+    if req.days is not None:
+        if req.days <= 0: raise HTTPException(400, "مدت نامعتبر")
+        x.ex("UPDATE plans SET days=? WHERE id=?", (req.days, pid))
     if req.active is not None: x.ex("UPDATE plans SET active=? WHERE id=?", (1 if req.active else 0, pid))
     audit("plan_edit", pid, req.model_dump_json()); return {"ok": True}
 
@@ -472,43 +545,84 @@ def ticket_close(tid: int, request: Request):
     return {"ok": True}
 
 
-# ---------- bot appearance / searchable controls ----------
-@router.get("/panel/api/appearance")
-def appearance(request: Request, q: str = ""):
-    guard(request); x = b(); term = q.strip().lower()
-    groups = getattr(x, "BTN_GROUPS", {})
-    names = getattr(x, "BTN_NAMES", list(groups.values()))
-    buttons = []
-    for name in names:
-        if term and term not in str(name).lower(): continue
-        buttons.append({"name": name, "color": x.S("color:" + name) or "orig", "emoji": x.S("emoji:" + name) or ""})
-    texts = []
-    for key, val in getattr(x, "TEXTS", {}).items():
-        title, default = val
-        if term and term not in f"{key} {title}".lower(): continue
-        texts.append({"key": key, "title": title, "value": x.S("text:" + key) or default})
-    return {"ok": True, "buttons": buttons, "texts": texts, "colors": list(getattr(x, "BTN_COLOR_MODES", {"orig": ("اصلی", None), "green": ("سبز", None), "red": ("قرمز", None), "blue": ("آبی", None), "none": ("بی‌رنگ", None)}).keys())}
+# ---------- bot appearance (تغییرات ظاهر) ----------
+COLOR_KEYS = ("orig", "green", "red", "blue", "none")
 
-class AppearanceReq(BaseModel):
-    key: str
-    value: str = ""
+
+def _norm(t):
+    return re.sub(r"[\s\u200c\u200f\u200e]+", "", str(t or "").replace("ي", "ی").replace("ك", "ک")).lower()
+
+
+def _guess_text(name, texts):
+    n = _norm(name); best, score = "", 0
+    for key, (title, _) in texts.items():
+        tt = _norm(title)
+        if not tt: continue
+        sc = 3 if tt == n else 2 if (tt in n or n in tt) else 0
+        if sc > score: best, score = key, sc
+    return best
+
+
+@router.get("/panel/api/appearance")
+def appearance(request: Request):
+    guard(request); x = b()
+    groups = list(dict.fromkeys(getattr(x, "BTN_GROUPS", {}).values()))
+    names = list(dict.fromkeys(getattr(x, "BTN_NAMES", [])))
+    texts = getattr(x, "TEXTS", {})
+    buttons = []
+    for i, name in enumerate(names):
+        g = name in groups
+        buttons.append({"name": name, "group": g, "label": "" if g else (x.S("btnname:" + name) or ""),
+                        "color": x.S("color:" + name) or "orig", "emoji": "" if g else (x.S("btnemoji:" + name) or ""),
+                        "text": "" if g else _guess_text(name, texts)})
+    tx = [{"key": k, "title": v[0], "default": v[1], "value": x.S("text:" + k) or v[1], "custom": bool(x.S("text:" + k))}
+          for k, v in texts.items()]
+    return {"ok": True, "buttons": buttons, "texts": tx, "premium": x.S("premium_on") == "1"}
+
+
+class BtnLookReq(BaseModel):
+    name: str
+    color: str | None = None
+    label: str | None = None
+    emoji: str | None = None
+
 
 @router.post("/panel/api/appearance/button")
-def appearance_button(req: AppearanceReq, request: Request):
-    guard(request, True); x = b(); key = req.key.strip()
-    allowed = set(getattr(x, "BTN_NAMES", [])) | set(getattr(x, "BTN_GROUPS", {}).values())
-    if key not in allowed: raise HTTPException(400, "دکمه پیدا نشد")
-    if req.value.startswith("emoji:"): x.set_S("emoji:" + key, req.value[6:][:80])
-    else:
-        value = req.value if req.value in {"orig", "green", "red", "blue", "none"} else "orig"
-        x.set_S("color:" + key, value)
+def appearance_button(req: BtnLookReq, request: Request):
+    guard(request, True); x = b(); name = req.name
+    groups = set(getattr(x, "BTN_GROUPS", {}).values())
+    if name not in set(getattr(x, "BTN_NAMES", [])) | groups: raise HTTPException(404, "دکمه پیدا نشد")
+    if req.color is not None:
+        if req.color not in COLOR_KEYS: raise HTTPException(400, "رنگ نامعتبر")
+        x.set_S("color:" + name, "" if req.color == "orig" else req.color)
+    if req.label is not None:
+        if name in groups: raise HTTPException(400, "نام گروه‌ها قابل تغییر نیست")
+        lab = " ".join(req.label.split())[:60]
+        x.set_S("btnname:" + name, "" if lab == name else lab)
+    if req.emoji is not None:
+        if name in groups: raise HTTPException(400, "برای گروه‌ها ایموجی جدا قابل تنظیم نیست")
+        e = re.sub(r"\D", "", req.emoji.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")))[:40]
+        if req.emoji.strip() and not e: raise HTTPException(400, "آیدی ایموجی پریمیوم باید عددی باشد")
+        x.set_S("btnemoji:" + name, e)
+    audit("look_button", name, req.model_dump_json(exclude_none=True)[:200])
     return {"ok": True}
 
+
+class TextLookReq(BaseModel):
+    key: str
+    value: str = ""
+    reset: bool = False
+
+
 @router.post("/panel/api/appearance/text")
-def appearance_text(req: AppearanceReq, request: Request):
-    guard(request, True); x = b(); key = req.key.strip()
-    if key not in getattr(x, "TEXTS", {}): raise HTTPException(400, "متن پیدا نشد")
-    x.set_S("text:" + key, req.value[:10000]); return {"ok": True}
+def appearance_text(req: TextLookReq, request: Request):
+    guard(request, True); x = b(); texts = getattr(x, "TEXTS", {})
+    if req.key not in texts: raise HTTPException(404, "متن پیدا نشد")
+    v = "" if req.reset else req.value.strip()[:4000]
+    if not req.reset and not v: raise HTTPException(400, "متن خالی است")
+    x.set_S("text:" + req.key, v); audit("look_text", req.key)
+    return {"ok": True, "value": v or texts[req.key][1]}
+
 
 # ---------- settings ----------
 HIDDEN_KEYS = {"extra_admins", "abk_last", "groups"}
