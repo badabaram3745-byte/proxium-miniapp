@@ -13,3 +13,15 @@
 
 ## Railway
 Root Directory خالی یا `/` باشد. یک بار Clear build cache بزن. متغیرهای `BOT_TOKEN` و `ADMIN_IDS` لازم‌اند. برای SQLite ماندگار، Volume روی `/data` و `DB_PATH=/data/bot.db` تنظیم کن.
+
+## اطلاعات IP در مینی‌اپ
+
+دکمه «اطلاعات IP من» از مسیر داخلی زیر استفاده می‌کند و نیازی به قرار دادن لینک سرویس خارجی داخل فرانت ندارد:
+
+`/api/x/ip`
+
+اگر جایی URL کامل لازم داشتی، دامنه Railway خودت را جایگزین کن:
+
+`https://YOUR-RAILWAY-DOMAIN/api/x/ip`
+
+این endpoint با Telegram init-data محافظت شده و اطلاعات را در دیتابیس ذخیره نمی‌کند.
