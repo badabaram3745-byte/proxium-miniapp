@@ -4,9 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0c0e13">
 <title>پنل مدیریت</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;900&family=Space+Grotesk:wght@500;700&display=swap">
-<link rel="stylesheet" href="/static/panel.css?v=1">
+<link rel="stylesheet" href="/static/panel.css?v=8">
 </head>
 <body>
 <div id="login" class="login hidden">
@@ -22,58 +23,94 @@
 </div>
 
 <div id="shell" class="shell hidden">
-  <aside class="side">
-    <div class="brand"><span>◈</span><b>پنل مدیریت</b></div>
+  <aside class="side" id="side">
+    <div class="brand">
+      <span class="brand-mark">◈</span>
+      <div><b>پنل مدیریت</b><small>مدیریت هسته ربات</small></div>
+      <button type="button" class="side-close" id="sideClose" aria-label="بستن منو">×</button>
+    </div>
     <nav id="nav">
-      <button data-tab="dash" class="on">📊 داشبورد</button>
-      <button data-tab="pay">🧾 رسیدها <em id="badgePay" class="badge hidden"></em></button>
-      <button data-tab="users">👥 کاربران</button>
-      <button data-tab="svc">📦 سرویس‌ها</button>
-      <button data-tab="tk">🎫 تیکت‌ها <em id="badgeTk" class="badge hidden"></em></button>
-      <button data-tab="plans">🗂 پلن‌ها</button>
-      <button data-tab="panels">🔌 پنل‌ها</button>
-      <button data-tab="dc">🎟 کد تخفیف</button>
-      <button data-tab="bc">📢 پیام همگانی</button>
-      <button data-tab="appearance">🎨 ظاهر و دکمه‌ها</button><button data-tab="set">⚙️ تنظیمات</button>
-      <button data-tab="log">📚 تراکنش و لاگ</button>
+      <div class="nav-group open">
+        <button type="button" class="nav-head" data-group><span><i>🏠</i>عملیات روزانه</span><em>⌄</em></button>
+        <div class="nav-items">
+          <button type="button" data-tab="dash" class="on"><i>📊</i>داشبورد</button>
+          <button type="button" data-tab="users"><i>👥</i>کاربران</button>
+          <button type="button" data-tab="svc"><i>📦</i>سرویس‌ها</button>
+          <button type="button" data-tab="tk"><i>🎫</i>تیکت‌ها<em id="badgeTk" class="badge hidden"></em></button>
+          <button type="button" data-tab="bc"><i>📢</i>پیام همگانی</button>
+        </div>
+      </div>
+      <div class="nav-group open">
+        <button type="button" class="nav-head" data-group><span><i>💳</i>مالی و پرداخت</span><em>⌄</em></button>
+        <div class="nav-items">
+          <button type="button" data-tab="pay"><i>🧾</i>رسیدها<em id="badgePay" class="badge hidden"></em></button>
+          <button type="button" data-tab="dc"><i>🎟</i>کد تخفیف</button>
+          <button type="button" data-tab="log"><i>📚</i>تراکنش و لاگ</button>
+        </div>
+      </div>
+      <div class="nav-group open">
+        <button type="button" class="nav-head" data-group><span><i>🗂</i>کاتالوگ و زیرساخت</span><em>⌄</em></button>
+        <div class="nav-items">
+          <button type="button" data-tab="plans"><i>📦</i>پلن‌ها</button>
+          <button type="button" data-tab="panels"><i>🔌</i>پنل‌های سرور</button>
+        </div>
+      </div>
+      <div class="nav-group open">
+        <button type="button" class="nav-head" data-group><span><i>✨</i>تنظیمات ربات</span><em>⌄</em></button>
+        <div class="nav-items">
+          <button type="button" data-tab="look"><i>🎨</i>تغییرات ظاهر</button>
+          <button type="button" data-tab="set"><i>⚙️</i>تنظیمات</button>
+        </div>
+      </div>
     </nav>
-    <button id="logout" class="btn ghost">خروج</button>
+    <button id="logout" type="button" class="btn logout">⎋ خروج از حساب</button>
   </aside>
+  <div id="shade" class="shade"></div>
 
   <main class="main">
     <header class="topbar">
-      <div class="topbar-title"><button id="menuToggle" class="menu-toggle" aria-label="باز کردن منو">☰</button><div><small>CONTROL CENTER</small><h1>مرکز مدیریت</h1></div></div>
-      <div class="topbar-actions"><input id="globalSearch" class="global-search" placeholder="جستجوی بخش، دکمه یا متن..." aria-label="جستجو"><span class="live-dot"></span><span class="muted">سیستم آنلاین</span><button id="quickRefresh" class="btn ghost">↻ بروزرسانی</button></div>
+      <button id="menuBtn" type="button" class="icon-btn" aria-label="منو">☰</button>
+      <div class="top-title"><small>CONTROL CENTER</small><h1 id="pageTitle">داشبورد</h1></div>
+      <form id="gSearch" class="gsearch" role="search">
+        <input id="gq" placeholder="جستجوی دکمه، متن یا بخش…" autocomplete="off">
+        <button type="submit" class="btn primary">🔎 جستجو</button>
+      </form>
+      <button id="refreshBtn" type="button" class="icon-btn" aria-label="بروزرسانی">↻</button>
     </header>
+
     <!-- dashboard -->
     <section id="t-dash" class="tab on">
-      <h2>داشبورد</h2>
-      <div class="hero-strip"><div><small>وضعیت امروز</small><h3>عملیات ربات در یک نگاه</h3><p class="muted">فروش، شارژ، کاربران و زیرساخت را از همین‌جا کنترل کن.</p></div><div class="hero-orb">✦</div></div><div id="kpis" class="kpis"></div>
+      <div class="hero"><div><small>وضعیت امروز</small><h3>عملیات ربات در یک نگاه</h3><p>فروش، شارژ، کاربران و رسیدها.</p></div><span class="hero-orb">✦</span></div>
+      <div id="kpis" class="kpis"></div>
       <div class="card"><h3>۱۴ روز اخیر</h3><div id="chart" class="chart"></div><div class="legend"><span class="l1">فروش سرویس</span><span class="l2">شارژ کیف پول</span></div></div>
     </section>
 
     <!-- payments -->
     <section id="t-pay" class="tab">
       <div class="bar"><h2>رسیدها</h2>
-        <div class="seg" id="paySeg"><button data-st="pending" class="on">در انتظار</button><button data-st="ok">تأییدشده</button><button data-st="rejected">ردشده</button></div></div>
+        <div class="seg" id="paySeg"><button type="button" data-st="pending" class="on">در انتظار</button><button type="button" data-st="ok">تأییدشده</button><button type="button" data-st="rejected">ردشده</button></div></div>
       <div id="payList" class="list"></div>
     </section>
 
     <!-- users -->
     <section id="t-users" class="tab">
-      <div class="bar"><h2>کاربران</h2><form id="userSearch" class="search"><input id="uq" placeholder="آیدی، یوزرنیم، نام یا شماره"><button class="btn">جستجو</button></form></div>
+      <div class="bar"><h2>کاربران</h2><form id="userSearch" class="search"><input id="uq" placeholder="آیدی، یوزرنیم، نام یا شماره"><button class="btn primary">جستجو</button></form></div>
       <div id="userList" class="list"></div>
     </section>
 
     <!-- services -->
     <section id="t-svc" class="tab">
-      <div class="bar"><h2>سرویس‌ها</h2><form id="svcSearch" class="search"><input id="sq" placeholder="نام سرویس یا آیدی کاربر"><select id="sst"><option value="">همه</option><option value="active">فعال</option><option value="pending">در انتظار</option><option value="expired">منقضی</option><option value="disabled">غیرفعال</option></select><button class="btn">جستجو</button></form></div>
+      <div class="bar"><h2>سرویس‌ها <small id="svcCount" class="count"></small></h2>
+        <form id="svcSearch" class="search"><input id="sq" placeholder="آیدی کاربر، نام سرویس یا یوزرنیم" inputmode="search">
+          <select id="sst"><option value="">همه وضعیت‌ها</option><option value="active">فعال</option><option value="disabled">غیرفعال</option><option value="pending">در انتظار</option><option value="expired">منقضی</option></select>
+          <button class="btn primary">جستجو</button></form></div>
       <div id="svcList" class="list"></div>
+      <button type="button" id="svcMore" class="btn more hidden">نمایش بیشتر</button>
     </section>
 
     <!-- tickets -->
     <section id="t-tk" class="tab">
-      <div class="bar"><h2>تیکت‌ها</h2><div class="seg" id="tkSeg"><button data-st="open" class="on">باز</button><button data-st="closed">بسته</button></div></div>
+      <div class="bar"><h2>تیکت‌ها</h2><div class="seg" id="tkSeg"><button type="button" data-st="open" class="on">باز</button><button type="button" data-st="closed">بسته</button></div></div>
       <div class="split"><div id="tkList" class="list"></div><div id="tkView" class="card thread"><p class="muted">یک تیکت را انتخاب کن.</p></div></div>
     </section>
 
@@ -81,12 +118,14 @@
     <section id="t-plans" class="tab">
       <h2>پلن‌ها</h2>
       <form id="planAdd" class="card inline"><input name="months" type="number" min="1" placeholder="ماه" required><input name="gb" type="number" min="1" placeholder="گیگ" required><input name="days" type="number" min="1" placeholder="روز" required><input name="price" type="number" min="0" placeholder="قیمت (تومان)" required><button class="btn primary">افزودن پلن</button></form>
-      <div id="planList" class="list"></div>
+      <div id="monthCards" class="month-cards"></div>
+      <div id="planHead" class="bar hidden"><h3 id="planTitle"></h3><button type="button" class="btn ghost" id="planBack">↩ همه مدت‌ها</button></div>
+      <div id="planList" class="plan-grid"></div>
     </section>
 
     <!-- panels -->
     <section id="t-panels" class="tab">
-      <h2>پنل‌ها</h2>
+      <h2>پنل‌های سرور</h2>
       <p class="muted">افزودن و ویرایش اطلاعات اتصال پنل از داخل ربات انجام می‌شود (رمزها اینجا نمایش داده نمی‌شوند).</p>
       <div id="panelList" class="list"></div>
     </section>
@@ -105,9 +144,15 @@
     </section>
 
     <!-- appearance -->
-    <section id="t-appearance" class="tab">
-      <div class="bar"><div><h2>ظاهر، دکمه‌ها و متن‌ها</h2><p class="muted">نام، رنگ، ایموجی پریمیوم و متن‌های ربات را از همین‌جا کنترل کن.</p></div><button id="appearanceRefresh" class="btn">↻ بروزرسانی</button></div>
-      <div class="appearance-grid"><div class="card"><h3>دکمه‌ها</h3><div id="appearanceButtons" class="list"></div></div><div class="card"><h3>پیام‌ها و متن‌ها</h3><div id="appearanceTexts" class="list"></div></div></div>
+    <section id="t-look" class="tab">
+      <div class="bar"><div><h2>تغییرات ظاهر</h2><p class="muted">روی هر دکمه بزن: تغییر رنگ، تغییر نام، تغییر پیغام و ایموجی پریمیوم.</p></div></div>
+      <form id="lookSearch" class="card look-search" role="search">
+        <input id="lq" placeholder="اسم دکمه یا پیام را بنویس، مثلاً زرین‌پال" autocomplete="off">
+        <button class="btn primary">🔎 جستجو</button>
+        <button type="button" class="btn ghost" id="lookClear">پاک کردن</button>
+      </form>
+      <div class="seg look-seg" id="lookSeg"><button type="button" data-k="btn" class="on">دکمه‌ها <b id="lookBtnN" class="num"></b></button><button type="button" data-k="txt">پیام‌ها <b id="lookTxtN" class="num"></b></button></div>
+      <div id="lookList" class="look-grid"></div>
     </section>
 
     <!-- settings -->
@@ -119,16 +164,17 @@
 
     <!-- logs -->
     <section id="t-log" class="tab">
-      <div class="bar"><h2>تراکنش و لاگ</h2><div class="seg" id="logSeg"><button data-k="transactions" class="on">تراکنش‌ها</button><button data-k="audit">لاگ ادمین‌ها</button></div></div>
+      <div class="bar"><h2>تراکنش و لاگ</h2><div class="seg" id="logSeg"><button type="button" data-k="transactions" class="on">تراکنش‌ها</button><button type="button" data-k="audit">لاگ ادمین‌ها</button></div></div>
       <div id="logList" class="list"></div>
     </section>
   </main>
-<div id="mobileShade" class="mobile-shade"></div>
 </div>
 
 <!-- user drawer -->
 <div id="drawer" class="drawer" aria-hidden="true"><div class="drawer-in" id="drawerIn"></div></div>
+<!-- editor sheet (appearance / plans) -->
+<div id="sheet" class="sheet" aria-hidden="true"><div class="sheet-in" id="sheetIn" role="dialog" aria-modal="true"></div></div>
 <div id="toast" class="toast"></div>
-<script src="/static/panel.js?v=1"></script>
+<script src="/static/panel.js?v=8"></script>
 </body>
 </html>
