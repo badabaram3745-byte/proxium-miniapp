@@ -472,6 +472,44 @@ def ticket_close(tid: int, request: Request):
     return {"ok": True}
 
 
+# ---------- bot appearance / searchable controls ----------
+@router.get("/panel/api/appearance")
+def appearance(request: Request, q: str = ""):
+    guard(request); x = b(); term = q.strip().lower()
+    groups = getattr(x, "BTN_GROUPS", {})
+    names = getattr(x, "BTN_NAMES", list(groups.values()))
+    buttons = []
+    for name in names:
+        if term and term not in str(name).lower(): continue
+        buttons.append({"name": name, "color": x.S("color:" + name) or "orig", "emoji": x.S("emoji:" + name) or ""})
+    texts = []
+    for key, val in getattr(x, "TEXTS", {}).items():
+        title, default = val
+        if term and term not in f"{key} {title}".lower(): continue
+        texts.append({"key": key, "title": title, "value": x.S("text:" + key) or default})
+    return {"ok": True, "buttons": buttons, "texts": texts, "colors": list(getattr(x, "BTN_COLOR_MODES", {"orig": ("اصلی", None), "green": ("سبز", None), "red": ("قرمز", None), "blue": ("آبی", None), "none": ("بی‌رنگ", None)}).keys())}
+
+class AppearanceReq(BaseModel):
+    key: str
+    value: str = ""
+
+@router.post("/panel/api/appearance/button")
+def appearance_button(req: AppearanceReq, request: Request):
+    guard(request, True); x = b(); key = req.key.strip()
+    allowed = set(getattr(x, "BTN_NAMES", [])) | set(getattr(x, "BTN_GROUPS", {}).values())
+    if key not in allowed: raise HTTPException(400, "دکمه پیدا نشد")
+    if req.value.startswith("emoji:"): x.set_S("emoji:" + key, req.value[6:][:80])
+    else:
+        value = req.value if req.value in {"orig", "green", "red", "blue", "none"} else "orig"
+        x.set_S("color:" + key, value)
+    return {"ok": True}
+
+@router.post("/panel/api/appearance/text")
+def appearance_text(req: AppearanceReq, request: Request):
+    guard(request, True); x = b(); key = req.key.strip()
+    if key not in getattr(x, "TEXTS", {}): raise HTTPException(400, "متن پیدا نشد")
+    x.set_S("text:" + key, req.value[:10000]); return {"ok": True}
+
 # ---------- settings ----------
 HIDDEN_KEYS = {"extra_admins", "abk_last", "groups"}
 

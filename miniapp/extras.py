@@ -1,7 +1,8 @@
 # NAYI Mini App · v5 user extras (additive only; nothing from v4 is removed).
 # In-app card top-up with receipt, support tickets, rename / transfer service, referral, IP info.
 import asyncio, base64, html, json, logging, re, time, urllib.request
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request, Query
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from miniapp import tgapi
@@ -269,6 +270,32 @@ def referral(x_telegram_init_data: str | None = Header(default=None)):
     bot = core.bot_username()
     return {"ok": True, "link": f"https://t.me/{bot}?start=ref_{uid}" if bot else "", "percent": int(float(S(b, "ref_percent", "0") or 0)), "count": refs}
 
+
+
+
+# ---------- signed browser IP callback ----------
+def _ip_sig(bot, uid, exp):
+    token = getattr(bot, "BOT_TOKEN", "")
+    return __import__("hmac").new(token.encode(), f"{uid}:{exp}".encode(), __import__("hashlib").sha256).hexdigest()[:40]
+
+async def _signed_ip_page(request: Request, uid: int, exp: int, sig: str):
+    core = _core(); b = core.bot_module()
+    if not uid or exp <= int(time.time()) or not sig or not __import__("hmac").compare_digest(sig, _ip_sig(b, uid, exp)):
+        return HTMLResponse("<h1>لینک نامعتبر یا منقضی شده</h1>", status_code=403)
+    ip = _client_ip(request)
+    fn = getattr(b, "ip_send_result", None)
+    if callable(fn):
+        try: await fn(uid, ip)
+        except Exception: log.exception("signed ip callback failed")
+    return HTMLResponse("<meta charset='utf-8'><title>اطلاعات IP</title><body style='font-family:Tahoma;text-align:center;padding:48px;background:#0b1120;color:white'><h2>✓ درخواست ارسال شد</h2><p>نتیجه اطلاعات IP داخل ربات برای شما ارسال شد.</p></body>")
+
+@router.get("/ip-info")
+async def ip_info_callback(request: Request, uid: int = Query(0), exp: int = Query(0), sig: str = Query("")):
+    return await _signed_ip_page(request, uid, exp, sig)
+
+@router.get("/api/x/ip/ip-info")
+async def ip_info_callback_alias(request: Request, uid: int = Query(0), exp: int = Query(0), sig: str = Query("")):
+    return await _signed_ip_page(request, uid, exp, sig)
 
 # ---------- IP info ----------
 def _client_ip(request: Request):
