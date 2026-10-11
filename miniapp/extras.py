@@ -282,7 +282,10 @@ def _client_ip(request: Request):
 
 def _ip_lookup(ip):
     try:
-        with urllib.request.urlopen(f"https://ipwho.is/{ip}", timeout=6) as r: return json.loads(r.read())
+        safe_ip = ip.replace("/", "").replace("\\", "")
+        with urllib.request.urlopen(f"https://ipwho.is/{safe_ip}", timeout=6) as r:
+            payload = json.loads(r.read())
+            return payload if payload.get("success", True) else {}
     except Exception: return {}
 
 
@@ -295,4 +298,4 @@ async def ip_info(request: Request, x_telegram_init_data: str | None = Header(de
     conn = d.get("connection") or {}; tz = d.get("timezone") or {}; fl = d.get("flag") or {}
     return {"ok": True, "ip": ip, "version": d.get("type") or ("IPv6" if ":" in ip else "IPv4"), "country": d.get("country") or "—",
             "flag": fl.get("emoji") or "🌐", "region": d.get("region") or "—", "city": d.get("city") or "—",
-            "isp": conn.get("isp") or conn.get("org") or "—", "asn": conn.get("asn") or "—", "tz": tz.get("id") or "—"}
+            "isp": conn.get("isp") or conn.get("org") or "—", "asn": conn.get("asn") or "—", "tz": tz.get("id") or "—", "provider": "ipwho.is"}

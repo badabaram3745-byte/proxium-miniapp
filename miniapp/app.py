@@ -328,8 +328,6 @@ async def discount(req: DiscountRequest, x_telegram_init_data: str | None = Head
         price, amount, _ = price_for_code(b, uid, int(p["price"]), code)
         _pending_discount[uid] = {"code": code, "plan_id": req.plan_id, "price": price}
         return {"ok": True, "code": code, "price": price, "discount": amount}
-    _pending_discount[uid] = {"code": code}
-    return {"ok": True, "code": code}
 
 
 # ---------- v5 additions (only new routes; nothing above is changed) ----------
