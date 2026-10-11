@@ -192,7 +192,7 @@ async function loadIp() {
   const rows = [['آدرس IP', d.ip, 1], ['نسخه', d.version], ['کشور', `${d.flag} ${d.country}`], ['استان/منطقه', d.region], ['شهر', d.city], ['اپراتور', d.isp], ['ASN', d.asn, 1], ['منطقه زمانی', d.tz, 1]];
   box.innerHTML = `<div class="x-ip-hero"><span>${esc(d.flag)}</span><b class="latin">${esc(d.ip)}</b><button type="button" class="mini" data-xcopy="${esc(d.ip)}">کپی</button></div>
     <dl class="x-dl">${rows.map(([k, v, l]) => `<div><dt>${k}</dt><dd class="${l ? 'latin' : ''}">${esc(v)}</dd></div>`).join('')}</dl>
-    <p class="topup-foot">موقعیت تقریبی است و ذخیره نمی‌شود.</p>`;
+    <p class="topup-foot">موقعیت تقریبی است و ذخیره نمی‌شود. منبع: ${esc(d.provider || 'سرور اطلاعات IP')}</p>`;
 }
 
 /* ---------- hooks ---------- */
