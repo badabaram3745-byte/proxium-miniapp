@@ -38,7 +38,7 @@ $('#quickRefresh')?.addEventListener('click', () => LOAD[cur]?.());
 $('#logout').addEventListener('click', async () => { try { await api('logout', {}); } catch (_) {} showLogin(); });
 
 /* ---------- nav ---------- */
-const LOAD = { dash: loadDash, pay: loadPay, users: loadUsers, svc: loadSvc, tk: loadTk, plans: loadPlans, panels: loadPanels, dc: loadDc, bc: loadBc, set: loadSet, log: loadLog };
+const LOAD = { appearance: loadAppearance, dash: loadDash, pay: loadPay, users: loadUsers, svc: loadSvc, tk: loadTk, plans: loadPlans, panels: loadPanels, dc: loadDc, bc: loadBc, set: loadSet, log: loadLog };
 let cur = 'dash';
 function go(t) {
   cur = t;
@@ -209,6 +209,19 @@ $('#bcForm').addEventListener('submit', async e => {
   if (!confirm('پیام برای همه کاربران ارسال شود؟')) return;
   if (await act(e.submitter, () => api('broadcast', { text }), 'ارسال شروع شد')) { $('#bcText').value = ''; setTimeout(loadBc, 800); }
 });
+
+/* ---------- appearance and global search ---------- */
+async function loadAppearance() {
+  const q = $('#globalSearch')?.value.trim() || '';
+  const d = await act(null, () => api('appearance?q=' + encodeURIComponent(q))); if (!d) return;
+  $('#appearanceButtons').innerHTML = d.buttons.map(x => `<div class="item appearance-row"><div class="grow"><b>${esc(x.name)}</b><small>رنگ فعلی: ${esc(x.color)} · ایموجی: ${esc(x.emoji || 'پیش‌فرض')}</small></div><select data-acolor="${esc(x.name)}"><option value="orig">اصلی</option><option value="green">سبز</option><option value="red">قرمز</option><option value="blue">آبی</option><option value="none">بی‌رنگ</option></select><input class="emoji-input" data-aemoji="${esc(x.name)}" placeholder="custom emoji id" value="${esc(x.emoji)}"><button class="btn" data-asave="${esc(x.name)}">ذخیره</button></div>`).join('') || '<p class="muted">چیزی پیدا نشد.</p>';
+  $$('#appearanceButtons [data-acolor]').forEach(e => e.value = e.parentElement.querySelector('small').textContent.match(/رنگ فعلی: ([^·]+)/)?.[1].trim() || 'orig');
+  $('#appearanceTexts').innerHTML = d.texts.map(x => `<div class="appearance-text"><label>${esc(x.title)} <small class="latin">${esc(x.key)}</small></label><textarea data-atext="${esc(x.key)}" rows="4">${esc(x.value)}</textarea><button class="btn primary" data-tsave="${esc(x.key)}">ذخیره متن</button></div>`).join('') || '<p class="muted">متنی پیدا نشد.</p>';
+}
+$('#appearanceRefresh')?.addEventListener('click', loadAppearance);
+$('#appearanceButtons')?.addEventListener('click', async e => { const t=e.target.closest('[data-asave]'); if(!t)return; const n=t.dataset.asave, row=t.closest('.appearance-row'); const c=row.querySelector('[data-acolor]').value, em=row.querySelector('[data-aemoji]').value.trim(); await act(t,()=>api('appearance/button',{key:n,value:c}),'ظاهر ذخیره شد ✓'); if(em) await act(t,()=>api('appearance/button',{key:n,value:'emoji:'+em}),'ایموجی ذخیره شد ✓'); loadAppearance(); });
+$('#appearanceTexts')?.addEventListener('click', async e => { const t=e.target.closest('[data-tsave]'); if(!t)return; const k=t.dataset.tsave, v=document.querySelector(`[data-atext="${CSS.escape(k)}"]`).value; if(await act(t,()=>api('appearance/text',{key:k,value:v}),'متن ذخیره شد ✓')) loadAppearance(); });
+$('#globalSearch')?.addEventListener('input', () => { if(cur === 'appearance') loadAppearance(); else { const q=$('#globalSearch').value.trim().toLowerCase(); $$('#nav button').forEach(b=>b.classList.toggle('hidden',q && !b.textContent.toLowerCase().includes(q))); } });
 
 /* ---------- settings ---------- */
 async function loadSet() {

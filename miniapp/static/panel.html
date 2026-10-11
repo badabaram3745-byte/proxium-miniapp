@@ -34,7 +34,7 @@
       <button data-tab="panels">🔌 پنل‌ها</button>
       <button data-tab="dc">🎟 کد تخفیف</button>
       <button data-tab="bc">📢 پیام همگانی</button>
-      <button data-tab="set">⚙️ تنظیمات</button>
+      <button data-tab="appearance">🎨 ظاهر و دکمه‌ها</button><button data-tab="set">⚙️ تنظیمات</button>
       <button data-tab="log">📚 تراکنش و لاگ</button>
     </nav>
     <button id="logout" class="btn ghost">خروج</button>
@@ -43,7 +43,7 @@
   <main class="main">
     <header class="topbar">
       <div class="topbar-title"><button id="menuToggle" class="menu-toggle" aria-label="باز کردن منو">☰</button><div><small>CONTROL CENTER</small><h1>مرکز مدیریت</h1></div></div>
-      <div class="topbar-actions"><span class="live-dot"></span><span class="muted">سیستم آنلاین</span><button id="quickRefresh" class="btn ghost">↻ بروزرسانی</button></div>
+      <div class="topbar-actions"><input id="globalSearch" class="global-search" placeholder="جستجوی بخش، دکمه یا متن..." aria-label="جستجو"><span class="live-dot"></span><span class="muted">سیستم آنلاین</span><button id="quickRefresh" class="btn ghost">↻ بروزرسانی</button></div>
     </header>
     <!-- dashboard -->
     <section id="t-dash" class="tab on">
@@ -102,6 +102,12 @@
     <section id="t-bc" class="tab">
       <h2>پیام همگانی</h2>
       <form id="bcForm" class="card"><textarea id="bcText" rows="6" maxlength="4000" placeholder="متن پیام برای همه کاربران (به جز مسدودها)"></textarea><button class="btn primary">ارسال برای همه</button><p id="bcState" class="muted"></p></form>
+    </section>
+
+    <!-- appearance -->
+    <section id="t-appearance" class="tab">
+      <div class="bar"><div><h2>ظاهر، دکمه‌ها و متن‌ها</h2><p class="muted">نام، رنگ، ایموجی پریمیوم و متن‌های ربات را از همین‌جا کنترل کن.</p></div><button id="appearanceRefresh" class="btn">↻ بروزرسانی</button></div>
+      <div class="appearance-grid"><div class="card"><h3>دکمه‌ها</h3><div id="appearanceButtons" class="list"></div></div><div class="card"><h3>پیام‌ها و متن‌ها</h3><div id="appearanceTexts" class="list"></div></div></div>
     </section>
 
     <!-- settings -->
