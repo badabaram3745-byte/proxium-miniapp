@@ -297,9 +297,12 @@ def btn(text, data=None, style=None, ek=None, url=None):
     _c = S("color:" + color_key(text, data, url))  # ➕ رنگ اختصاصی همین دکمه
     if _c == "none": kw.pop("style", None)
     elif BTN_COLOR_MODES.get(_c, (0, None))[1]: kw["style"] = BTN_COLOR_MODES[_c][1]
-    eid = emoji_id(ek) if ek else None
+    # ➕ ایموجی پریمیوم اختصاصی و نام دلخواه همین دکمه (از پنل وب > تغییرات ظاهر)
+    _own = S("btnemoji:" + text) if S("premium_on") == "1" else ""
+    eid = _own or (emoji_id(ek) if ek else None)
     if eid: kw["icon_custom_emoji_id"] = eid
-    label = text if (eid or not ek) else f"{text} {EMOJI.get(ek, '')}".strip()
+    shown = (S("btnname:" + text) or "").strip() or text
+    label = shown if (eid or not ek) else f"{shown} {EMOJI.get(ek, '')}".strip()
     try:
         if url: return IKB(label, url=url, **kw)
         return IKB(label, callback_data=data or "noop", **kw)
