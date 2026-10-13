@@ -49,7 +49,9 @@ def user_from_init(init_data: str):
     pairs = dict(parse_qsl(init_data, keep_blank_values=True)); received = pairs.pop("hash", "")
     try: auth_date = int(pairs.get("auth_date", "0"))
     except ValueError: raise HTTPException(401, "Invalid Telegram init data")
-    if not received or time.time() - auth_date > 86400: raise HTTPException(401, "Invalid or expired init data")
+    now = int(time.time())
+    if not received or auth_date > now + 60 or now - auth_date > 7200:
+        raise HTTPException(401, "Invalid or expired init data")
     check = "\n".join(f"{k}={pairs[k]}" for k in sorted(pairs))
     secret = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
     if not hmac.compare_digest(hmac.new(secret, check.encode(), hashlib.sha256).hexdigest(), received): raise HTTPException(401, "Invalid Telegram signature")
@@ -58,6 +60,10 @@ def user_from_init(init_data: str):
 def auth(x_telegram_init_data: str | None):
     u = user_from_init(x_telegram_init_data or "")
     if not u.get("id"): raise HTTPException(401, "Telegram user missing")
+    b = bot_module()
+    dbu = b.get_user(int(u["id"]))
+    if not dbu: raise HTTPException(404, "اول یک بار ربات را استارت کن")
+    if int(dbu["banned"] or 0): raise HTTPException(403, "حساب شما مسدود است")
     return u
 
 def bot_module():
@@ -97,12 +103,13 @@ def col(row, key, default=None):
         except Exception: return default
 
 def charge(b, uid: int, price: int):
-    """کسر موجودی با بررسی اینکه واقعا کم شد."""
-    dbu = b.get_user(uid); before = int(dbu["balance"] or 0)
-    if before < price: raise HTTPException(402, f"موجودی کافی نیست. موجودی: {b.money(dbu['balance'])}")
-    b.ex("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?", (price, uid, price))
-    if int(b.get_user(uid)["balance"] or 0) > before - price:
-        raise HTTPException(402, "موجودی کافی نیست؛ دوباره تلاش کن")
+    """کسر اتمیک موجودی؛ فقط یک UPDATE تعیین‌کننده نتیجه است."""
+    if price < 0: raise HTTPException(400, "مبلغ نامعتبر است")
+    if not b.get_user(uid): raise HTTPException(404, "کاربر پیدا نشد")
+    debit = getattr(b, "debit_balance", None)
+    ok = debit(uid, price) if callable(debit) else False
+    if not ok:
+        raise HTTPException(402, f"موجودی کافی نیست. موجودی: {b.money(b.get_user(uid)['balance'])}")
 
 def refund(b, uid: int, price: int):
     if price: b.ex("UPDATE users SET balance=balance+? WHERE id=?", (price, uid))
@@ -170,7 +177,13 @@ def user_services(b, uid, with_qr=True):
 @app.get("/")
 def index(): return FileResponse(ROOT / "static" / "index.html", headers={"Cache-Control": "no-cache"})
 @app.get("/health")
-def health(): return {"ok": True, "service": "nayi-mini-app"}
+def health():
+    try:
+        b = bot_module()
+        b.q("SELECT 1", one=True)
+        return {"ok": True, "service": "proxium-mini-app"}
+    except Exception:
+        raise HTTPException(503, "service not ready")
 
 @app.get("/api/config")
 def config(x_telegram_init_data: str | None = Header(default=None)):
@@ -251,11 +264,13 @@ async def buy(req: BuyRequest, x_telegram_init_data: str | None = Header(default
         if not p: raise HTTPException(404, "Plan not found")
         pn = pick_panel(b, req.panel_id)
         pending = _pending_discount.get(uid)
-        if req.discount_code and pending and pending.get("code") == req.discount_code.strip() and pending.get("plan_id") == req.plan_id:
-            price, discount_amount, code = int(pending["price"]), int(p["price"]) - int(pending["price"]), req.discount_code.strip()
+        if pending and pending.get("expires", 0) < time.time():
             _pending_discount.pop(uid, None)
-        else:
-            price, discount_amount, code = price_for_code(b, uid, int(p["price"]), req.discount_code)
+            pending = None
+        # Revalidate and recalculate immediately before charging.
+        price, discount_amount, code = price_for_code(b, uid, int(p["price"]), req.discount_code)
+        if pending and req.discount_code and pending.get("code") == req.discount_code.strip() and pending.get("plan_id") == req.plan_id:
+            _pending_discount.pop(uid, None)
         charge(b, uid, price)
         uname = f"{b.USER_PREFIX}{uid}_{b.secrets.token_hex(2)}"
         try:
@@ -281,17 +296,22 @@ async def free_test(req: TestRequest, x_telegram_init_data: str | None = Header(
     enabled, test_gb, test_days, configured_panel = test_settings(b)
     if not enabled or test_gb <= 0 or test_days <= 0: raise HTTPException(404, "اکانت تست فعلاً غیرفعال است")
     async with user_lock(uid):
-        user = b.get_user(uid)
-        if int(user["test_used"] or 0): raise HTTPException(409, "قبلاً اکانت تست گرفتی")
+        if not b.get_user(uid): raise HTTPException(404, "کاربر پیدا نشد")
+        claim_test = getattr(b, "claim_test", None)
+        if not callable(claim_test) or not claim_test(uid):
+            raise HTTPException(409, "قبلاً اکانت تست گرفتی")
         pn = pick_panel(b, req.panel_id or configured_panel); uname = f"{b.USER_PREFIX}{uid}_t{b.secrets.token_hex(2)}"
         try: res = await b.panel_create(pn, uname, test_gb, test_days)
-        except Exception: log.exception("test create failed"); raise HTTPException(502, "ساخت اکانت تست ناموفق بود")
+        except Exception:
+            b.ex("UPDATE users SET test_used=0 WHERE id=? AND NOT EXISTS (SELECT 1 FROM services WHERE user_id=? AND is_test=1 AND status!='deleted')", (uid, uid))
+            log.exception("test create failed"); raise HTTPException(502, "ساخت اکانت تست ناموفق بود")
         now = int(time.time())
         try:
             sid = b.ex("INSERT INTO services(user_id,plan_id,panel_id,username,link,sub,gb,days,price,created,expire,is_test,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,'active')", (uid,0,pn["id"],uname,res["link"],res["sub"],test_gb,test_days,0,now,now+test_days*86400))
         except Exception:
-            await cleanup_panel(b, pn, uname); raise HTTPException(502, "ثبت اکانت تست ناموفق بود")
-        b.ex("UPDATE users SET test_used=1 WHERE id=?", (uid,))
+            await cleanup_panel(b, pn, uname)
+            b.ex("UPDATE users SET test_used=0 WHERE id=? AND NOT EXISTS (SELECT 1 FROM services WHERE user_id=? AND is_test=1 AND status!='deleted')", (uid, uid))
+            raise HTTPException(502, "ثبت اکانت تست ناموفق بود")
         return {"ok": True, "service": {"id": sid, "name": uname, "gb": test_gb, "days": test_days, "price": 0, "link": res["link"], "sub": res["sub"], "qr": "", "expire": now+test_days*86400, "status": "active", "panel_id": pn["id"], "panel": pn["name"], "is_test": 1, "created": now}}
 
 @app.post("/api/renew")
@@ -326,7 +346,7 @@ async def discount(req: DiscountRequest, x_telegram_init_data: str | None = Head
         p = b.q("SELECT * FROM plans WHERE id=? AND active=1", (req.plan_id,), True)
         if not p: raise HTTPException(404, "پلن پیدا نشد")
         price, amount, _ = price_for_code(b, uid, int(p["price"]), code)
-        _pending_discount[uid] = {"code": code, "plan_id": req.plan_id, "price": price}
+        _pending_discount[uid] = {"code": code, "plan_id": req.plan_id, "price": price, "expires": time.time() + 600}
         return {"ok": True, "code": code, "price": price, "discount": amount}
 
 

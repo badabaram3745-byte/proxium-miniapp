@@ -26,8 +26,7 @@ def b():
 
 
 def ip_of(request: Request):
-    xf = request.headers.get("x-forwarded-for")
-    return (xf.split(",")[0].strip() if xf else (request.client.host if request.client else "?"))
+    return request.client.host if request.client else "?"
 
 
 def make_token(user):
@@ -387,9 +386,10 @@ async def service_delete(sid: int, request: Request):
     pn = x.q("SELECT * FROM panels WHERE id=?", (s["panel_id"],), True)
     if pn and pn["ptype"] != "manual" and s["status"] != "pending":
         fn = getattr(x, "panel_delete", None)
-        if fn:
-            try: await fn(pn, s["username"])
-            except Exception as e: raise HTTPException(502, f"حذف از پنل ناموفق بود: {str(e)[:150]}")
+        if not fn:
+            raise HTTPException(501, "حذف از پنل فعال نیست")
+        try: await fn(pn, s["username"])
+        except Exception as e: raise HTTPException(502, f"حذف از پنل ناموفق بود: {str(e)[:150]}")
     x.ex("UPDATE services SET status='deleted' WHERE id=?", (sid,)); audit("service_delete", sid)
     return {"ok": True}
 
@@ -441,7 +441,12 @@ def plan_edit(pid: int, req: PlanEdit, request: Request):
 
 @router.post("/panel/api/plans/{pid}/delete")
 def plan_delete(pid: int, request: Request):
-    guard(request, True); b().ex("DELETE FROM plans WHERE id=?", (pid,)); audit("plan_delete", pid); return {"ok": True}
+    guard(request, True); x = b()
+    if not x.q("SELECT 1 FROM plans WHERE id=?", (pid,), True):
+        raise HTTPException(404, "پلن پیدا نشد")
+    x.ex("UPDATE plans SET active=0 WHERE id=?", (pid,))
+    audit("plan_deactivate", pid)
+    return {"ok": True}
 
 
 # ---------- panels ----------
