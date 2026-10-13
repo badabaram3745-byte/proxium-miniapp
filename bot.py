@@ -3526,5 +3526,238 @@ async def on_callback(update, ctx):
         return await _rotate_subscription_link(update, ctx, uid, int(d.split(":")[1]))
     return await _sublink_orig_on_callback(update, ctx)
 
+# ───────────────────────── ➕ لایه سازگاری پنل‌ها (افزودنی؛ کد قبلی دست نخورده) ─────────────────────────
+import math
+# ۱) نرمال‌سازی آدرس پنل (حذف /dashboard ، /panel ، # و افزودن https در صورت نبود)
+# ۲) مرزبان بدون تنظیمات اضافه: پروتکل‌های فعال سرور خودکار خوانده می‌شوند
+# ۳) مرزنشین بدون آیدی سرویس: همه سرویس‌های پنل خودکار انتخاب می‌شوند
+# ۴) پشتیبانی کامل هیدیفای (API v2): تست، ساخت، وضعیت، تمدید، ویرایش، حذف، فعال/غیرفعال
+if not any(t == "hiddify" for t, _ in PANEL_TYPES):
+    _mi = next((i for i, (t, _) in enumerate(PANEL_TYPES) if t == "manual"), len(PANEL_TYPES))
+    PANEL_TYPES.insert(_mi, ("hiddify", "هیدیفای"))
+if "هیدیفای" in SOON_PANELS:
+    SOON_PANELS.remove("هیدیفای")
+EXTRA_HINT.setdefault("hiddify", "مسیر پروکسی کاربر (proxy path client) برای لینک ساب؛ خالی = خودکار. "
+                                  "آدرس پنل = لینک ادمین هیدیفای، پسورد = API Key (UUID ادمین)")
+
+_MZ_FAMILY = ("marzban", "pasarguard", "marzneshin")
+
+def _panel_norm_url(ptype, url):
+    u = (url or "").strip().split("#")[0].strip()
+    if not u: return u
+    if not re.match(r"^https?://", u, re.I):
+        host = u.split("/")[0].split(":")[0]
+        u = ("http://" if re.match(r"^\d+\.\d+\.\d+\.\d+$", host) else "https://") + u
+    u = u.rstrip("/")
+    if ptype in _MZ_FAMILY:
+        u = re.sub(r"/dashboard(/.*)?$", "", u, flags=re.I)
+        u = re.sub(r"/(docs|api)$", "", u, flags=re.I)
+    elif ptype in XUI_PREFIX:
+        for suf in ("/panel/inbounds", "/panel/settings", "/panel/xray", "/panel",
+                    "/xui/inbounds", "/xui/setting", "/xui", "/login"):
+            if u.lower().endswith(suf):
+                u = u[: -len(suf)]; break
+    return u.rstrip("/")
+
+_compat_orig_http = _http
+def _http(p):
+    try:
+        url = _panel_norm_url(p["ptype"], p["url"])
+        if url and url != (p["url"] or "").rstrip("/"):
+            p = {**dict(p), "url": url}
+    except Exception:
+        pass
+    return _compat_orig_http(p)
+
+async def _mz_auto_extra(p):
+    """اگر تنظیمات اضافه خالی باشد، مقدار درست را از خود پنل می‌خواند (فقط خواندنی)."""
+    t, extra = p["ptype"], (p["extra"] or "").strip()
+    try:
+        if t == "marzban" and not extra.startswith("{"):
+            async with _http(p) as c:
+                h = await _token(c, p)
+                r = await c.get("/api/inbounds", headers=h)
+                if r.status_code < 400 and isinstance(r.json(), dict) and r.json():
+                    return {**dict(p), "extra": json.dumps({k: {} for k in r.json().keys()})}
+        if t == "marzneshin" and not _ids(extra):
+            async with _http(p) as c:
+                h = await _token(c, p)
+                for path in ("/api/services?size=100", "/api/services"):
+                    r = await c.get(path, headers=h)
+                    if r.status_code >= 400: continue
+                    j = r.json()
+                    items = j if isinstance(j, list) else (j.get("items") or j.get("services") or [])
+                    ids = [str(s["id"]) for s in items if isinstance(s, dict) and str(s.get("id", "")).isdigit()]
+                    if ids: return {**dict(p), "extra": ",".join(ids)}
+    except Exception as e:
+        log.warning("auto extra %s: %s", t, e)
+    return p
+
+# ---------- هیدیفای ----------
+_UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
+def _hd_cfg(p):
+    """از لینک ادمین هیدیفای: آدرس پایه API و کلید را جدا می‌کند."""
+    url = _panel_norm_url("hiddify", p["url"])
+    sp = urllib.parse.urlsplit(url)
+    segs = [s for s in sp.path.split("/") if s]
+    key = (p["password"] or "").strip()
+    if not _UUID_RE.fullmatch(key):
+        m = _UUID_RE.search(url); key = m.group(0) if m else key
+    cut = next((i for i, s in enumerate(segs) if _UUID_RE.fullmatch(s) or s.lower() in ("admin", "api")), len(segs))
+    admin_path = "/".join(segs[:cut])
+    origin = f"{sp.scheme}://{sp.netloc}"
+    return origin, admin_path, key
+
+def _hd_http(p):
+    origin, admin_path, key = _hd_cfg(p)
+    base = origin + ("/" + admin_path if admin_path else "")
+    return httpx.AsyncClient(base_url=base, timeout=25, verify=False, proxy=S("bridge_url") or None,
+                             follow_redirects=True, headers={"Hiddify-API-Key": key, "Accept": "application/json"})
+
+def _hd_uuid(username): return str(uuid.uuid5(uuid.NAMESPACE_URL, "proxium:" + username))
+
+def _hd_err(r):
+    if r.status_code >= 400: raise Exception(f"HTTP {r.status_code}: {r.text[:300]}")
+
+async def _hd_find(c, username):
+    u = _hd_uuid(username)
+    r = await c.get(f"/api/v2/admin/user/{u}/")
+    if r.status_code < 400: return u, r.json()
+    r = await c.get("/api/v2/admin/user/")
+    if r.status_code < 400:
+        for x in (r.json() if isinstance(r.json(), list) else []):
+            if isinstance(x, dict) and x.get("name") == username: return x.get("uuid"), x
+    return None, None
+
+def _hd_days(exp): return max(1, int(math.ceil((int(exp) - time.time()) / 86400)))
+
+async def _hd_client_path(c, p, admin_path):
+    extra = (p["extra"] or "").strip().strip("/")
+    if extra: return extra
+    try:
+        r = await c.get("/api/v2/admin/all-configs/")
+        if r.status_code < 400:
+            j = r.json(); s = json.dumps(j)
+            m = re.search(r'"proxy_path_client"\s*:\s*"([^"]+)"', s) or re.search(r'"proxy_path"\s*:\s*"([^"]+)"', s)
+            if m: return m.group(1).strip("/")
+    except Exception as e:
+        log.warning("hiddify configs %s", e)
+    return admin_path
+
+async def hiddify_test(p):
+    try:
+        async with _hd_http(p) as c:
+            for path in ("/api/v2/admin/me/", "/api/v2/admin/server_status/"):
+                r = await c.get(path)
+                if r.status_code < 400: return True, "اتصال موفق ✅"
+            _hd_err(r)
+    except Exception as e:
+        return False, f"خطا در اتصال: {html.escape(str(e))[:300]}"
+    return False, "خطا در اتصال"
+
+async def hiddify_create(p, username, gb, days):
+    origin, admin_path, _ = _hd_cfg(p); u = _hd_uuid(username)
+    async with _hd_http(p) as c:
+        body = {"uuid": u, "name": username, "usage_limit_GB": float(gb), "package_days": int(days),
+                "mode": "no_reset", "enable": True, "start_date": dt.date.today().isoformat(), "comment": "proxium"}
+        r = await c.post("/api/v2/admin/user/", json=body)
+        if r.status_code == 422:
+            body.pop("start_date", None); r = await c.post("/api/v2/admin/user/", json=body)
+        _hd_err(r)
+        u = (r.json() or {}).get("uuid") or u
+        cp = await _hd_client_path(c, p, admin_path)
+    sub = f"{origin}/{cp}/{u}/sub/" if cp else f"{origin}/{u}/sub/"
+    links = await _sub_links(sub)
+    return {"sub": sub, "link": links[0] if links else sub}
+
+async def hiddify_info(p, username):
+    async with _hd_http(p) as c:
+        _, j = await _hd_find(c, username)
+    if not j: return None
+    used = float(j.get("current_usage_GB") or 0); total = float(j.get("usage_limit_GB") or 0)
+    exp = None
+    try:
+        if j.get("start_date") and j.get("package_days"):
+            sd = dt.datetime.fromisoformat(str(j["start_date"])[:10])
+            exp = (sd + dt.timedelta(days=int(j["package_days"]))).timestamp()
+    except Exception: pass
+    st = "active" if j.get("enable", True) and (not total or used < total) else "disabled"
+    return {"status": st, "used": used, "total": total, "expire": jdate(exp) if exp else "نامحدود"}
+
+async def hiddify_update(p, username, body):
+    async with _hd_http(p) as c:
+        u, j = await _hd_find(c, username)
+        if not u: raise Exception("کاربر روی پنل هیدیفای پیدا نشد")
+        r = await c.patch(f"/api/v2/admin/user/{u}/", json=body); _hd_err(r)
+
+async def hiddify_delete(p, username):
+    async with _hd_http(p) as c:
+        u, _ = await _hd_find(c, username)
+        if not u: return
+        r = await c.delete(f"/api/v2/admin/user/{u}/")
+        if r.status_code != 404: _hd_err(r)
+
+async def hiddify_set_active(p, username, active):
+    await hiddify_update(p, username, {"enable": bool(active)})
+
+async def hiddify_status(p, out):
+    async with _hd_http(p) as c:
+        r = await c.get("/api/v2/admin/server_status/"); _hd_err(r); j = r.json() or {}
+    info = (j.get("stats") or {}).get("system") or j.get("system") or {}
+    if _pick(info, "cpu_percent", "cpu") is not None: out["cpu"] = f"{float(_pick(info, 'cpu_percent', 'cpu')):.1f}%"
+    if info.get("ram_total"): out["ram"] = f"{float(info.get('ram_used') or 0):.2f} GB / {float(info['ram_total']):.2f} GB"
+    if info.get("disk_total"): out["disk"] = f"{float(info.get('disk_used') or 0):.2f} GB / {float(info['disk_total']):.2f} GB"
+    out["panel_status"] = "فعال ✅"
+    return out
+
+# ---------- اتصال به توابع اصلی (فقط برای hiddify و حالت‌های خالی؛ بقیه همان کد قبلی) ----------
+_compat_orig_panel_test = panel_test
+async def panel_test(p):
+    if p["ptype"] == "hiddify": return await hiddify_test(p)
+    return await _compat_orig_panel_test(p)
+
+_compat_orig_panel_create = panel_create
+async def panel_create(p, username, gb, days):
+    if p["ptype"] == "hiddify": return await hiddify_create(p, username, gb, days)
+    if p["ptype"] in ("marzban", "marzneshin"): p = await _mz_auto_extra(p)
+    return await _compat_orig_panel_create(p, username, gb, days)
+
+_compat_orig_panel_info = panel_info
+async def panel_info(p, username):
+    if p["ptype"] == "hiddify": return await hiddify_info(p, username)
+    return await _compat_orig_panel_info(p, username)
+
+_compat_orig_panel_status = panel_status
+async def panel_status(p):
+    if p["ptype"] == "hiddify":
+        out = {"cpu": "-", "ram": "-", "swap": "-", "disk": "-", "panel_status": "نامشخص",
+               "version": "-", "down": 0, "up": 0, "down_speed": 0, "up_speed": 0,
+               "clients": 0, "main_accounts": 0, "user_down": 0, "user_up": 0,
+               "user_total": 0, "active_volume": 0}
+        return await hiddify_status(p, out)
+    return await _compat_orig_panel_status(p)
+
+_compat_orig_panel_renew = panel_renew
+async def panel_renew(p, username, gb, exp):
+    if p["ptype"] == "hiddify":
+        return await hiddify_update(p, username, {"usage_limit_GB": float(gb), "package_days": _hd_days(exp),
+                                                  "start_date": dt.date.today().isoformat(),
+                                                  "current_usage_GB": 0, "enable": True})
+    return await _compat_orig_panel_renew(p, username, gb, exp)
+
+_compat_orig_panel_edit = panel_edit
+async def panel_edit(p, username, gb, exp):
+    if p["ptype"] == "hiddify":
+        return await hiddify_update(p, username, {"usage_limit_GB": float(gb), "package_days": _hd_days(exp),
+                                                  "start_date": dt.date.today().isoformat(), "enable": True})
+    return await _compat_orig_panel_edit(p, username, gb, exp)
+
+_compat_orig_panel_delete = panel_delete
+async def panel_delete(p, username):
+    if p["ptype"] == "hiddify": return await hiddify_delete(p, username)
+    return await _compat_orig_panel_delete(p, username)
+
+
 if __name__ == "__main__":
     main()
