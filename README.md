@@ -12,7 +12,7 @@
 - تاریخچه تراکنش‌ها، چندپنل، تست، تخفیف، مصرف، تمدید، QR و پروفایل حفظ شده‌اند.
 
 ## Railway
-Root Directory خالی یا `/` باشد. یک بار Clear build cache بزن. متغیرهای `BOT_TOKEN`، `ADMIN_IDS` و `MAIN_ADMIN_ID` لازم‌اند. برای SQLite ماندگار، Volume روی `/data` و `DB_PATH=/data/bot.db` تنظیم کن. اگر Railway پروکسی را با IP مشخص ارائه می‌کند، همان IPها را در `TRUSTED_PROXY_IPS` قرار بده؛ مقدار پیش‌فرض فقط `127.0.0.1` است.
+Root Directory خالی یا `/` باشد. یک بار Clear build cache بزن. متغیرهای `BOT_TOKEN` و `ADMIN_IDS` لازم‌اند. برای SQLite ماندگار، Volume روی `/data` و `DB_PATH=/data/bot.db` تنظیم کن.
 
 ## اطلاعات IP در مینی‌اپ
 
@@ -24,4 +24,4 @@ Root Directory خالی یا `/` باشد. یک بار Clear build cache بزن.
 
 `https://YOUR-RAILWAY-DOMAIN/api/x/ip`
 
-این endpoint فقط با Telegram init-data معتبر کار می‌کند و اطلاعات را در دیتابیس ذخیره نمی‌کند.
+این endpoint با Telegram init-data محافظت شده و اطلاعات را در دیتابیس ذخیره نمی‌کند.
