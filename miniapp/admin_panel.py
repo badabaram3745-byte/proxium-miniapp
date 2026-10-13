@@ -358,6 +358,8 @@ async def _panel_set_active(x, pn, username, active):
                              data={"id": inb, "settings": json.dumps({"clients": [client]})})
             j = r.json()
             if not j.get("success"): raise Exception(j.get("msg") or "updateClient failed")
+        elif t == "hiddify" and hasattr(x, "hiddify_set_active"):  # ➕ هیدیفای
+            await x.hiddify_set_active(pn, username, active)
         else:
             raise Exception("نوع پنل پشتیبانی نمی‌شود")
 
@@ -467,6 +469,56 @@ async def panel_test(pid: int, request: Request):
     except Exception as e: ok, msg = False, str(e)
     import re
     return {"ok": True, "success": bool(ok), "message": re.sub(r"<[^>]+>", "", msg or "")[:300]}
+
+
+# ➕ ---------- panels: add / delete (همان دیتابیس ربات؛ فوراً در ربات هم دیده می‌شود) ----------
+@router.get("/panel/api/panel-types")
+def panel_types(request: Request):
+    guard(request); x = b()
+    hints = getattr(x, "EXTRA_HINT", {})
+    return {"ok": True, "items": [{"id": t, "name": n, "hint": hints.get(t, "")} for t, n in x.PANEL_TYPES],
+            "soon": list(getattr(x, "SOON_PANELS", []))}
+
+
+class PanelAdd(BaseModel):
+    name: str
+    ptype: str
+    url: str = ""
+    user: str = ""
+    password: str = ""
+    extra: str = ""
+
+
+@router.post("/panel/api/panels")
+async def panel_add(req: PanelAdd, request: Request):
+    guard(request, True); x = b()
+    name, ptype = req.name.strip(), req.ptype.strip()
+    if ptype not in {t for t, _ in x.PANEL_TYPES}: raise HTTPException(400, "نوع پنل نامعتبر است")
+    if not name: raise HTTPException(400, "اسم پنل را وارد کن")
+    url, user, pw, extra = req.url.strip().rstrip("/"), req.user.strip(), req.password, req.extra.strip()
+    if extra == "-": extra = ""
+    if ptype != "manual":
+        if not url: raise HTTPException(400, "لینک پنل را وارد کن")
+        if ptype != "hiddify" and (not user or not pw): raise HTTPException(400, "یوزرنیم و پسورد پنل را وارد کن")
+    else:
+        url = user = pw = extra = ""
+    np = {"name": name, "ptype": ptype, "url": url, "user": user, "password": pw, "extra": extra}
+    try: ok, msg = await x.panel_test(np)
+    except Exception as e: ok, msg = False, str(e)
+    pid = x.ex("INSERT INTO panels(name,ptype,url,user,password,extra) VALUES(?,?,?,?,?,?)",
+               (name, ptype, url, user, pw, extra))
+    audit("panel_add", pid, f"{ptype} ok={ok}")
+    return {"ok": True, "id": pid, "success": bool(ok), "message": re.sub(r"<[^>]+>", "", msg or "")[:300]}
+
+
+@router.post("/panel/api/panels/{pid}/delete")
+def panel_delete(pid: int, request: Request):
+    guard(request, True); x = b()
+    p = x.q("SELECT * FROM panels WHERE id=?", (pid,), True)
+    if not p: raise HTTPException(404, "پنل پیدا نشد")
+    x.ex("DELETE FROM panels WHERE id=?", (pid,))   # همان کاری که دکمه «حذف پنل» داخل ربات انجام می‌دهد
+    audit("panel_delete", pid, p["name"])
+    return {"ok": True}
 
 
 # ---------- discounts ----------
