@@ -294,12 +294,60 @@ async function loadPanels() {
   const d = await act(null, () => api('panels')); if (!d || d === true) return;
   $('#panelList').innerHTML = d.items.map(p => `<div class="item"><div class="grow"><b>${esc(p.name)} <small class="latin">${esc(p.ptype)}</small></b><small class="latin">${esc(p.url || '—')} · ${num(p.services)} سرویس فعال</small></div>
     ${p.active ? '<span class="tag ok">فعال</span>' : '<span class="tag off">غیرفعال</span>'}<span class="muted" data-res="${p.id}"></span>
-    <div class="acts"><button type="button" class="btn" data-ntest="${p.id}">تست اتصال</button><button type="button" class="btn" data-ntog="${p.id}">${p.active ? 'غیرفعال کن' : 'فعال کن'}</button></div></div>`).join('') || '<p class="empty">پنلی ثبت نشده.</p>';
+    <div class="acts"><button type="button" class="btn" data-ntest="${p.id}">تست اتصال</button><button type="button" class="btn" data-ntog="${p.id}">${p.active ? 'غیرفعال کن' : 'فعال کن'}</button><button type="button" class="btn bad" data-ndel="${p.id}" data-nname="${esc(p.name)}" data-nsvc="${num(p.services)}">🗑 حذف پنل</button></div></div>`).join('') || '<p class="empty">پنلی ثبت نشده.</p>';
 }
 $('#panelList').addEventListener('click', async e => {
   const t = e.target.closest('button'); if (!t) return;
   if (t.dataset.ntest) { const r = await act(t, () => api(`panels/${t.dataset.ntest}/test`, {})); if (r && r !== true) { const s = $(`[data-res="${t.dataset.ntest}"]`); s.textContent = r.message; s.style.color = r.success ? 'var(--ok)' : 'var(--bad)'; } }
   if (t.dataset.ntog) { if (await act(t, () => api(`panels/${t.dataset.ntog}/toggle`, {}))) loadPanels(); }
+  if (t.dataset.ndel) {
+    const warn = +String(t.dataset.nsvc).replace(/,/g, '') ? `\nاین پنل ${t.dataset.nsvc} سرویس فعال دارد.` : '';
+    if (!confirm(`پنل «${t.dataset.nname}» حذف شود؟ از ربات هم حذف می‌شود.${warn}`)) return;
+    if (await act(t, () => api(`panels/${t.dataset.ndel}/delete`, {}), 'پنل حذف شد ✓')) loadPanels();
+  }
+});
+/* ➕ add panel (same DB as bot) */
+let PTYPES = null;
+const PF = {
+  manual: { url: 0, user: 0, pass: 0, extra: 0 },
+  hiddify: { urlL: 'لینک ادمین هیدیفای', urlP: 'https://domain.com/ADMIN_PATH/ADMIN_UUID/admin/', user: 0, passL: 'API Key (UUID ادمین، اگر داخل لینک هست خالی بگذار)', passReq: false },
+};
+$('#panelAddBtn').addEventListener('click', async e => {
+  if (!PTYPES) { const d = await act(e.target, () => api('panel-types')); if (!d || d === true) return; PTYPES = d; }
+  const opts = PTYPES.items.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('');
+  openSheet(`<div class="sheet-head"><div><small>NEW PANEL</small><h3>افزودن پنل</h3></div><button type="button" class="icon-btn" data-sclose>×</button></div>
+    <form id="pnAdd" class="form-grid" autocomplete="off">
+      <label>نوع پنل<select id="pnType">${opts}</select></label>
+      <label>اسم پنل / لوکیشن<input id="pnName" placeholder="مثلاً 🇩🇪 آلمان" required maxlength="60"></label>
+      <label id="pnUrlL"><span>لینک پنل</span><input id="pnUrl" class="latin" dir="ltr" inputmode="url" placeholder="https://panel.site.com:8000"></label>
+      <label id="pnUserL">یوزرنیم ادمین<input id="pnUser" class="latin" dir="ltr" autocomplete="off"></label>
+      <label id="pnPassL"><span>پسورد ادمین</span><input id="pnPass" class="latin" dir="ltr" type="password" autocomplete="new-password"></label>
+      <label id="pnExtraL">تنظیمات اضافه (اختیاری)<input id="pnExtra" class="latin" dir="ltr"><small id="pnHint"></small></label>
+      <p class="muted" id="pnRes"></p>
+      <button class="btn primary wide">➕ افزودن</button>
+    </form>`);
+  const sync = () => {
+    const t = $('#pnType').value, f = PF[t] || {}, h = PTYPES.items.find(x => x.id === t);
+    $('#pnUrlL').classList.toggle('hidden', f.url === 0); $('#pnUserL').classList.toggle('hidden', f.user === 0);
+    $('#pnPassL').classList.toggle('hidden', f.pass === 0); $('#pnExtraL').classList.toggle('hidden', f.extra === 0);
+    $('#pnUrlL span').textContent = f.urlL || 'لینک پنل (با پورت)'; $('#pnUrl').placeholder = f.urlP || 'https://panel.site.com:8000';
+    $('#pnPassL span').textContent = f.passL || 'پسورد ادمین'; $('#pnHint').textContent = (h && h.hint) || '';
+  };
+  $('#pnType').addEventListener('change', sync); sync();
+  $('#pnAdd').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const t = $('#pnType').value, f = PF[t] || {};
+    const body = { ptype: t, name: $('#pnName').value.trim(), url: $('#pnUrl').value.trim(), user: $('#pnUser').value.trim(), password: $('#pnPass').value, extra: $('#pnExtra').value.trim() };
+    if (!body.name) return toast('اسم پنل را وارد کن', true);
+    if (f.url !== 0 && !body.url) return toast('لینک پنل را وارد کن', true);
+    if (f.user !== 0 && !body.user) return toast('یوزرنیم را وارد کن', true);
+    if (f.pass !== 0 && f.passReq !== false && !body.password) return toast('پسورد را وارد کن', true);
+    $('#pnRes').textContent = '⏳ در حال تست اتصال و ذخیره...';
+    const r = await act(ev.submitter, () => api('panels', body));
+    if (!r || r === true) { $('#pnRes').textContent = ''; return; }
+    toast(r.success ? 'پنل اضافه شد و اتصال موفق بود ✓' : 'پنل اضافه شد، ولی تست اتصال ناموفق بود: ' + r.message, !r.success);
+    closeSheet(); loadPanels();
+  });
 });
 
 /* ---------- discounts ---------- */
