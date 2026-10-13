@@ -13,7 +13,8 @@ def start_web():
         log_level="info",
         loop="asyncio",
         proxy_headers=True,
-        forwarded_allow_ips="*",
+        # Only trust proxy headers from explicitly configured proxy addresses.
+        forwarded_allow_ips=os.getenv("TRUSTED_PROXY_IPS", "127.0.0.1"),
     )
 
 

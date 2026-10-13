@@ -3,7 +3,7 @@
 ربات فروش VPN (پروکسیوم)
 نیازمند: python-telegram-bot >= 22.7  (پشتیبانی از دکمه رنگی style و icon_custom_emoji_id)
 """
-import os, re, io, json, time, uuid, html, secrets, sqlite3, logging, datetime as dt
+import os, re, io, json, time, uuid, html, secrets, sqlite3, logging, datetime as dt, threading
 import httpx
 import asyncio, hmac, hashlib, base64, urllib.parse  # ➕
 from telegram import (Update, InlineKeyboardButton as IKB, InlineKeyboardMarkup as IKM,
@@ -21,12 +21,15 @@ except ImportError:
     qrcode = None
 
 # ───────────────────────── تنظیمات اصلی ─────────────────────────
-BOT_TOKEN = os.getenv("BOT_TOKEN", "PUT_YOUR_TOKEN_HERE")
-ADMIN_IDS = {int(x) for x in os.getenv("ADMIN_IDS", "123456789").replace(" ", "").split(",") if x}
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+ADMIN_IDS = {int(x) for x in os.getenv("ADMIN_IDS", "").replace(" ", "").split(",") if x}
 # ➕ ادمین اصلی (فقط او می‌تواند ادمین اضافه/حذف کند)
-MAIN_ADMIN_ID = 123456789
+MAIN_ADMIN_ID = int(os.getenv("MAIN_ADMIN_ID", "0") or 0)
+if not MAIN_ADMIN_ID and ADMIN_IDS:
+    MAIN_ADMIN_ID = min(ADMIN_IDS)
 ENV_ADMIN_IDS = set(ADMIN_IDS)  # ادمین‌های داخل تنظیمات هم ادمین اصلی حساب می‌شوند
-ADMIN_IDS.add(MAIN_ADMIN_ID)
+if MAIN_ADMIN_ID:
+    ADMIN_IDS.add(MAIN_ADMIN_ID)
 BOT_NAME = os.getenv("BOT_NAME", "پروکسیوم")
 DB_PATH = os.getenv("DB_PATH", "bot.db")
 RTL = os.getenv("RTL_BUTTONS", "1") == "1"      # دکمه اول هر ردیف سمت راست باشد
@@ -219,15 +222,21 @@ EXTRA_HINT = {
 }
 
 # ───────────────────────── دیتابیس ─────────────────────────
-CON = sqlite3.connect(DB_PATH, check_same_thread=False)
+DB_LOCK = threading.RLock()
+CON = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=15)
 CON.row_factory = sqlite3.Row
+CON.execute("PRAGMA journal_mode=WAL")
+CON.execute("PRAGMA busy_timeout=15000")
+CON.commit()
 
 def q(sql, args=(), one=False):
-    rows = CON.execute(sql, args).fetchall()
+    with DB_LOCK:
+        rows = CON.execute(sql, args).fetchall()
     return (rows[0] if rows else None) if one else rows
 
 def ex(sql, args=()):
-    cur = CON.execute(sql, args); CON.commit(); return cur.lastrowid
+    with DB_LOCK:
+        cur = CON.execute(sql, args); CON.commit(); return cur.lastrowid
 
 def init_db():
     CON.executescript("""
@@ -263,6 +272,26 @@ def set_S(k, v):
 
 def get_user(uid):
     return q("SELECT * FROM users WHERE id=?", (uid,), True)
+
+def debit_balance(uid, amount):
+    """Atomically debit one user's balance; returns True only when one row changed."""
+    with DB_LOCK:
+        cur = CON.execute(
+            "UPDATE users SET balance=balance-? WHERE id=? AND balance>=?",
+            (int(amount), int(uid), int(amount)),
+        )
+        CON.commit()
+        return cur.rowcount == 1
+
+def claim_test(uid):
+    """Atomically reserve the one-time test entitlement."""
+    with DB_LOCK:
+        cur = CON.execute(
+            "UPDATE users SET test_used=1 WHERE id=? AND COALESCE(test_used, 0)=0",
+            (int(uid),),
+        )
+        CON.commit()
+        return cur.rowcount == 1
 
 # ───────────────────────── ابزارها ─────────────────────────
 def money(n): return f"{int(n):,}"
@@ -2450,6 +2479,10 @@ async def added_panel_integration_test(update, ctx):
     await update.message.reply_text("\n".join(out), parse_mode=ParseMode.HTML)
 
 def main():
+    if not BOT_TOKEN or BOT_TOKEN == "PUT_YOUR_TOKEN_HERE":
+        raise RuntimeError("BOT_TOKEN is required")
+    if not ADMIN_IDS or not MAIN_ADMIN_ID:
+        raise RuntimeError("ADMIN_IDS or MAIN_ADMIN_ID is required")
     init_db()
     init_db_extra()  # ➕ جدول‌های کد تخفیف / تراکنش / نام سرویس
     import asyncio
