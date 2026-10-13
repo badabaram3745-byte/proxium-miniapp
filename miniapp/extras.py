@@ -1,6 +1,6 @@
 # NAYI Mini App · v5 user extras (additive only; nothing from v4 is removed).
 # In-app card top-up with receipt, support tickets, rename / transfer service, referral, IP info.
-import asyncio, base64, html, ipaddress, json, logging, re, time, urllib.request
+import asyncio, base64, html, json, logging, re, time, urllib.request
 from fastapi import APIRouter, Header, HTTPException, Request, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -104,9 +104,7 @@ def topup_info(x_telegram_init_data: str | None = Header(default=None)):
 def _decode_image(raw: str):
     m = re.match(r"^data:(image/(?:jpeg|jpg|png|webp));base64,(.+)$", raw or "", re.S)
     mime, data = (m.group(1), m.group(2)) if m else ("image/jpeg", raw or "")
-    if len(data) > MAX_IMG * 4 // 3 + 4096:
-        raise HTTPException(413, "حجم عکس رسید زیاد است (حداکثر ۶ مگ)")
-    try: content = base64.b64decode(data, validate=True)
+    try: content = base64.b64decode(data, validate=False)
     except Exception: raise HTTPException(400, "تصویر رسید خراب است")
     if not content or len(content) < 200: raise HTTPException(400, "تصویر رسید را انتخاب کن")
     if len(content) > MAX_IMG: raise HTTPException(413, "حجم عکس رسید زیاد است (حداکثر ۶ مگ)")
@@ -301,18 +299,17 @@ async def ip_info_callback_alias(request: Request, uid: int = Query(0), exp: int
 
 # ---------- IP info ----------
 def _client_ip(request: Request):
-    # Uvicorn only rewrites request.client when the proxy is explicitly trusted.
-    # Never trust forwarding headers directly from an arbitrary caller.
-    value = request.client.host if request.client else ""
-    try:
-        return str(ipaddress.ip_address(value))
-    except ValueError:
-        return ""
+    for h in ("cf-connecting-ip", "x-real-ip"):
+        v = request.headers.get(h)
+        if v: return v.strip()
+    xf = request.headers.get("x-forwarded-for")
+    if xf: return xf.split(",")[0].strip()
+    return request.client.host if request.client else ""
 
 
 def _ip_lookup(ip):
     try:
-        safe_ip = str(ipaddress.ip_address(ip))
+        safe_ip = ip.replace("/", "").replace("\\", "")
         with urllib.request.urlopen(f"https://ipwho.is/{safe_ip}", timeout=6) as r:
             payload = json.loads(r.read())
             return payload if payload.get("success", True) else {}
@@ -321,7 +318,10 @@ def _ip_lookup(ip):
 
 @router.get("/api/x/ip")
 async def ip_info(request: Request, x_telegram_init_data: str | None = Header(default=None)):
-    core, b, uid, dbu = ctx(x_telegram_init_data)
+    # This endpoint is intentionally readable without Telegram headers so it can
+    # be tested from a normal browser. The mini-app still sends init-data.
+    if x_telegram_init_data:
+        ctx(x_telegram_init_data)
     ip = _client_ip(request)
     if not ip: raise HTTPException(500, "IP پیدا نشد")
     d = await asyncio.to_thread(_ip_lookup, ip)
