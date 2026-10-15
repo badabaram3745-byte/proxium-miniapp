@@ -85,6 +85,7 @@ EMOJI = {
     "startlayout": "🏠", "morelayout": "😎", "trx": "🧾", "today": "📅", "yesterday": "⏪", "last7": "7️⃣", "last30": "📆", "alltrx": "📚",
     "ip": "📍", "usage": "📊", "mysettings": "⚙️", "remind": "🔔", "transfer": "🔁", "ipbox": "🛡",  # ➕
 }
+EMOJI.update({"usage50": "⚠️", "usage100": "🛑"})
 # ➕ ایموجی دکمه‌های جدید (تمدید، حذف، تغییر نام، کد تخفیف، تراکنش‌ها)
 EMOJI.update({"renew": "🔄", "delsrv": "🗑", "rename": "📝", "discount": "🎟", "trx": "🧾", "ticket": "🎫", "direct": "👤"})
 
@@ -189,6 +190,14 @@ TEXTS.update({
     "trx_head": ("عنوان تراکنش‌ها (ادمین)", "{E:trx} <b>تراکنش‌ها | {PERIOD}</b>"),
     "dc_admin": ("عنوان کدهای تخفیف (ادمین)",
         "{E:discount} <b>کدهای تخفیف</b>\nروی هر کد بزن برای مدیریت، یا کد جدید بساز."),
+    "usage50": ("مصرف ۵۰ درصد",
+        "{E:usage50} <b>نصف حجم سرویس شما مصرف شده</b>\n\n"
+        "سرویس: <code>{NAME}</code>\nمصرف: <b>{USED} از {TOTAL} گیگ</b>\n"
+        "هنوز نصف حجم سرویس باقی مانده است."),
+    "usage100": ("پایان حجم",
+        "{E:usage100} <b>حجم سرویس شما تمام شد</b>\n\n"
+        "سرویس: <code>{NAME}</code>\nمصرف: <b>{TOTAL} گیگ</b>\n"
+        "برای ادامه، سرویس را تمدید یا یک سرویس جدید خریداری کنید."),
 })
 
 DEFAULT_SETTINGS = {
@@ -199,6 +208,7 @@ DEFAULT_SETTINGS = {
     "premium_on": "1", "bridge_url": "", "start_sticker": "", "suggest_plan": "",
     "extra_admins": "",
     "button_layout": "1",
+    "usage_alerts": "1", "usage_alert_50": "1", "usage_alert_100": "1",
 }
 SETTING_TITLES = {
     "card_number": "شماره کارت", "card_owner": "نام صاحب کارت", "test_gb": "حجم تست (گیگ)",
@@ -206,6 +216,9 @@ SETTING_TITLES = {
     "gift_percent": "درصد هدیه", "ref_percent": "درصد زیرمجموعه", "support_url": "لینک پشتیبانی",
     "channel_url": "لینک کانال", "bridge_url": "آدرس پل (پروکسی هسته واسط)",
     "start_sticker": "استیکر استارت (استیکر بفرست)", "suggest_plan": "آیدی پلن پیشنهادی",
+    "usage_alerts": "هشدارهای مصرف حجم",
+    "usage_alert_50": "هشدار مصرف ۵۰ درصد",
+    "usage_alert_100": "هشدار تمام شدن حجم",
 }
 # ➕ آدرس عمومی سرور اطلاعات IP
 DEFAULT_SETTINGS["ip_web_url"] = ""
@@ -251,11 +264,18 @@ def init_db():
     CREATE TABLE IF NOT EXISTS services(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, plan_id INTEGER,
         panel_id INTEGER, username TEXT, link TEXT, sub TEXT, gb INTEGER, days INTEGER, price INTEGER,
         created INTEGER, expire INTEGER, is_test INTEGER DEFAULT 0, mid_sent INTEGER DEFAULT 0,
-        end_sent INTEGER DEFAULT 0, status TEXT DEFAULT 'active');
+        end_sent INTEGER DEFAULT 0, usage50_sent INTEGER DEFAULT 0, usage100_sent INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'active');
     CREATE TABLE IF NOT EXISTS payments(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount INTEGER,
         bonus INTEGER DEFAULT 0, photo TEXT, status TEXT DEFAULT 'pending', created INTEGER);
     CREATE TABLE IF NOT EXISTS settings(k TEXT PRIMARY KEY, v TEXT);
     """)
+    # مهاجرت بدون حذف داده‌های نسخه‌های قبلی
+    service_cols = {r["name"] for r in CON.execute("PRAGMA table_info(services)").fetchall()}
+    for col_name in ("usage50_sent", "usage100_sent"):
+        if col_name not in service_cols:
+            CON.execute(f"ALTER TABLE services ADD COLUMN {col_name} INTEGER DEFAULT 0")
+    CON.commit()
     for k, v in DEFAULT_SETTINGS.items():
         ex("INSERT OR IGNORE INTO settings(k,v) VALUES(?,?)", (k, v))
     if not q("SELECT 1 FROM plans LIMIT 1"):
@@ -1654,7 +1674,7 @@ async def do_renew(update, ctx, uid, sid, plan_id):
         return await show(update, "❌ تمدید با خطا مواجه شد و مبلغ به کیف پول برگشت. به پشتیبانی پیام دهید.", back_home())
     finally:
         RENEW_BUSY.discard(sid)
-    ex("UPDATE services SET gb=?, days=?, expire=?, plan_id=?, status='active', mid_sent=0, end_sent=0, is_test=0 WHERE id=?",
+    ex("UPDATE services SET gb=?, days=?, expire=?, plan_id=?, status='active', mid_sent=0, end_sent=0, usage50_sent=0, usage100_sent=0, is_test=0 WHERE id=?",
        (p["gb"], p["days"], new_exp, plan_id, sid))
     dc_use(uid, dcode); trx_log(uid, "renew", sid, plan_id, pn["id"], p["gb"], p["days"], price, p["price"] - price, dcode)
     await show(update, render("renew_done", NAME=svc_name(s), GB=p["gb"], EXPIRE=jdate(new_exp), PRICE=money(price)),
@@ -2294,6 +2314,35 @@ async def job_followup(ctx: ContextTypes.DEFAULT_TYPE):
                     await ctx.bot.send_message(s["user_id"], render("test_end", USER=name), parse_mode=ParseMode.HTML, reply_markup=buy_kb)
                     ex("UPDATE services SET end_sent=1, status='expired' WHERE id=?", (s["id"],))
             else:
+                # هشدار مصرف از خود پنل خوانده می‌شود، نه از عدد ثبت‌شده در ربات.
+                # بنابراین برای مرزبان، مرزنشین، پاسگارد و X-UI سازگار می‌ماند.
+                if S("usage_alerts") == "1" and (S("usage_alert_50") == "1" or S("usage_alert_100") == "1"):
+                    try:
+                        pn = q("SELECT * FROM panels WHERE id=? AND active=1", (s["panel_id"],), True)
+                        if pn and pn["ptype"] != "manual":
+                            info = await panel_info(pn, s["username"])
+                            used = float((info or {}).get("used") or 0)
+                            total = float((info or {}).get("total") or 0)
+                            if total > 0:
+                                if S("usage_alert_50") == "1" and not s["usage50_sent"] and used / total >= 0.5:
+                                    await ctx.bot.send_message(
+                                        s["user_id"],
+                                        render("usage50", NAME=s["username"], USED=f"{used:.2f}", TOTAL=f"{total:.2f}"),
+                                        parse_mode=ParseMode.HTML,
+                                        reply_markup=buy_kb,
+                                    )
+                                    ex("UPDATE services SET usage50_sent=1 WHERE id=?", (s["id"],))
+                                    s = q("SELECT * FROM services WHERE id=?", (s["id"],), True)
+                                if S("usage_alert_100") == "1" and not s["usage100_sent"] and used / total >= 1:
+                                    await ctx.bot.send_message(
+                                        s["user_id"],
+                                        render("usage100", NAME=s["username"], TOTAL=f"{total:.2f}"),
+                                        parse_mode=ParseMode.HTML,
+                                        reply_markup=buy_kb,
+                                    )
+                                    ex("UPDATE services SET usage100_sent=1 WHERE id=?", (s["id"],))
+                    except Exception as e:
+                        log.warning("usage followup %s: %s", s["id"], e)
                 if not s["mid_sent"] and 0 < s["expire"] - now < 86400:
                     await ctx.bot.send_message(s["user_id"], render("expire_soon", NAME=s["username"]), parse_mode=ParseMode.HTML, reply_markup=buy_kb)
                     ex("UPDATE services SET mid_sent=1 WHERE id=?", (s["id"],))
@@ -2324,11 +2373,13 @@ async def init_added_features():
     """)
     CON.commit()
     # افزودنی‌های رابط تیکت: فقط ثبت تنظیمات/کلیدها، بدون حذف یا تغییر قابلیت‌های قبلی
-    EMOJI.update({"ticket_reply": "↩️", "ticket_close": "🔒"})
+    EMOJI.update({"ticket_reply": "↩️", "ticket_close": "🔒", "usage50": "⚠️", "usage100": "🛑"})
     BTN_GROUPS.update({
         "ticket_reply": "دکمه پاسخ تیکت",
         "ticket_close": "دکمه بستن تیکت",
         "ticket_open": "دکمه باز کردن تیکت",
+        "usage50": "هشدار مصرف ۵۰ درصد",
+        "usage100": "هشدار تمام شدن حجم",
     })
     for _n in BTN_GROUPS.values():
         if _n not in BTN_NAMES:
@@ -2859,7 +2910,7 @@ async def nx_service_add(update, ctx, uid, sid, kind, val):
         log.exception("panel edit")
         return await update.effective_message.reply_text(f"❌ خطای پنل: {html.escape(str(e))[:400]}", parse_mode=ParseMode.HTML,
                                                          reply_markup=IKM([row(btn("بازگشت به سرویس", f"nsv:v:{sid}", RED, "back"))]))
-    ex("UPDATE services SET gb=?, expire=?, status=CASE WHEN status='expired' THEN 'active' ELSE status END, mid_sent=0 WHERE id=?",
+    ex("UPDATE services SET gb=?, expire=?, status=CASE WHEN status='expired' THEN 'active' ELSE status END, mid_sent=0, usage50_sent=0, usage100_sent=0 WHERE id=?",
        (gb_db, exp, sid))
     added_audit(uid, "service_add_" + kind, sid, val)
     try: await ctx.bot.send_message(s["user_id"], f"🎁 به سرویس <code>{html.escape(s['username'])}</code> "
