@@ -346,7 +346,16 @@ def section_row(section, *b):
         return (b[1:] + b[:1]) if len(b) > 1 else b
     return list(reversed(b)) if RTL else b
 
-def is_admin(uid): return uid in ADMIN_IDS
+def is_admin(uid):
+    if uid in ADMIN_IDS: return True
+    try:
+        import json, time
+        items = json.loads(S("temp_admins") or "[]")
+        active = [a for a in items if int(a.get("expires", 0)) > int(time.time())]
+        if len(active) != len(items): set_S("temp_admins", json.dumps(active, separators=(",", ":")))
+        return any(int(a.get("id", 0)) == int(uid) for a in active)
+    except Exception:
+        return False
 
 # ➕ مدیریت ادمین‌ها
 def is_main_admin(uid): return uid == MAIN_ADMIN_ID or uid in ENV_ADMIN_IDS

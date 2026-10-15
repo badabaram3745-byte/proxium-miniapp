@@ -1,0 +1,35 @@
+from pathlib import Path
+p=Path('/home/user/work_panel/miniapp/admin_panel.py')
+s=p.read_text()
+# add admin nav route area after me
+needle='@router.get("/panel/api/me")\ndef me(request: Request):\n    guard(request); return {"ok": True, "user": PANEL_USER}\n\n'
+insert='''@router.get("/panel/api/me")\ndef me(request: Request):\n    guard(request); return {"ok": True, "user": PANEL_USER}\n\n# ---------- additive admin management ----------\ndef _temp_admins():\n    try:\n        raw = b().S("temp_admins") or "[]"\n        return json.loads(raw) if isinstance(raw, str) else []\n    except Exception:\n        return []\n\ndef _save_temp_admins(items):\n    b().set_S("temp_admins", json.dumps(items, ensure_ascii=False, separators=(",", ":")))\n\nclass AdminReq(BaseModel):\n    user_id: int\n    days: int = 0\n    hours: int = 0\n\n@router.get("/panel/api/admins")\ndef admins(request: Request):\n    guard(request); x = b(); now = int(time.time())\n    temp = [a for a in _temp_admins() if int(a.get("expires", 0)) > now]\n    if len(temp) != len(_temp_admins()): _save_temp_admins(temp)\n    permanent = sorted(set(getattr(x, "extra_admins", lambda: [])()))\n    main = int(getattr(x, "MAIN_ADMIN_ID", 0))\n    env = sorted(set(getattr(x, "ENV_ADMIN_IDS", set())))\n    def user(uid):\n        u = x.q("SELECT id,name,username FROM users WHERE id=?", (uid,), True)\n        return {"id": uid, "name": (u["name"] if u else ""), "username": (u["username"] if u else "")}\n    return {"ok": True, "main": user(main), "env": [user(i) for i in env if i != main],\n            "permanent": [user(i) for i in permanent if i not in env and i != main], "temporary": [dict(user(int(a["id"])), expires=int(a["expires"])) for a in temp]}\n\n@router.post("/panel/api/admins")\ndef admin_add(req: AdminReq, request: Request):\n    guard(request, True); uid = int(req.user_id); x = b()\n    if uid <= 0: raise HTTPException(400, "آیدی کاربر نامعتبر است")\n    if not x.q("SELECT 1 FROM users WHERE id=?", (uid,), True): raise HTTPException(404, "کاربر پیدا نشد")\n    duration = max(0, int(req.days or 0)) * 86400 + max(0, int(req.hours or 0)) * 3600\n    if duration:\n        items = [a for a in _temp_admins() if int(a.get("id", 0)) != uid]\n        items.append({"id": uid, "expires": int(time.time()) + duration})\n        _save_temp_admins(items); audit("admin_temp_add", uid, str(duration))\n        return {"ok": True, "kind": "temporary"}\n    ids = list(getattr(x, "extra_admins", lambda: [])())\n    if uid not in ids: ids.append(uid)\n    getattr(x, "save_admins")(ids); audit("admin_add", uid)\n    return {"ok": True, "kind": "permanent"}\n\n@router.post("/panel/api/admins/{uid}/delete")\ndef admin_delete(uid: int, request: Request):\n    guard(request, True); x = b(); main = int(getattr(x, "MAIN_ADMIN_ID", 0))\n    if uid == main or uid in set(getattr(x, "ENV_ADMIN_IDS", set())): raise HTTPException(400, "ادمین اصلی یا تنظیم‌شده قابل حذف نیست")\n    getattr(x, "save_admins")([i for i in getattr(x, "extra_admins", lambda: [])() if int(i) != uid])\n    _save_temp_admins([a for a in _temp_admins() if int(a.get("id", 0)) != uid]); audit("admin_delete", uid)\n    return {"ok": True}\n\n'''
+if needle not in s: raise SystemExit('me needle missing')
+s=s.replace(needle,insert)
+# extend service select with user details and panel type
+old='"p.name panel,u.name uname,u.username uuser " + base + " ORDER BY s.id DESC LIMIT ? OFFSET ?"'
+new='"p.name panel,p.ptype,u.name uname,u.username uuser,u.phone uphone " + base + " ORDER BY s.id DESC LIMIT ? OFFSET ?"'
+if old not in s: raise SystemExit('service select missing')
+s=s.replace(old,new)
+# user discount routes before discounts section
+needle2='# ---------- discounts ----------\n'
+insert2='''# ---------- per-user discounts (additive) ----------\n@router.get("/panel/api/user-discounts")\ndef user_discounts(request: Request):\n    guard(request); x = b()\n    x.ex("CREATE TABLE IF NOT EXISTS user_discounts(user_id INTEGER PRIMARY KEY, percent INTEGER NOT NULL, active INTEGER DEFAULT 1, created INTEGER)")\n    r = x.q("SELECT d.*,u.name,u.username FROM user_discounts d LEFT JOIN users u ON u.id=d.user_id ORDER BY d.created DESC")\n    return {"ok": True, "items": rows(r)}\n\nclass UserDiscountReq(BaseModel):\n    user_id: int\n    percent: int\n\n@router.post("/panel/api/user-discounts")\ndef user_discount_add(req: UserDiscountReq, request: Request):\n    guard(request, True); x = b(); uid = int(req.user_id); percent = max(1, min(100, int(req.percent)))\n    if not x.q("SELECT 1 FROM users WHERE id=?", (uid,), True): raise HTTPException(404, "کاربر پیدا نشد")\n    x.ex("CREATE TABLE IF NOT EXISTS user_discounts(user_id INTEGER PRIMARY KEY, percent INTEGER NOT NULL, active INTEGER DEFAULT 1, created INTEGER)")\n    x.ex("INSERT INTO user_discounts(user_id,percent,active,created) VALUES(?,?,1,?) ON CONFLICT(user_id) DO UPDATE SET percent=excluded.percent,active=1", (uid, percent, int(time.time())))\n    audit("user_discount_add", uid, str(percent)); return {"ok": True}\n\n@router.post("/panel/api/user-discounts/{uid}/delete")\ndef user_discount_delete(uid: int, request: Request):\n    guard(request, True); x = b(); x.ex("CREATE TABLE IF NOT EXISTS user_discounts(user_id INTEGER PRIMARY KEY, percent INTEGER NOT NULL, active INTEGER DEFAULT 1, created INTEGER)")\n    x.ex("DELETE FROM user_discounts WHERE user_id=?", (uid,)); audit("user_discount_delete", uid); return {"ok": True}\n\n'''
+if needle2 not in s: raise SystemExit('discount needle missing')
+s=s.replace(needle2,insert2+needle2,1)
+p.write_text(s)
+
+# bot: additive temp admin support
+p=Path('/home/user/work_panel/bot.py'); s=p.read_text()
+old='def is_admin(uid): return uid in ADMIN_IDS\n'
+new='''def is_admin(uid):\n    if uid in ADMIN_IDS: return True\n    try:\n        import json, time\n        items = json.loads(S("temp_admins") or "[]")\n        active = [a for a in items if int(a.get("expires", 0)) > int(time.time())]\n        if len(active) != len(items): set_S("temp_admins", json.dumps(active, separators=(",", ":")))\n        return any(int(a.get("id", 0)) == int(uid) for a in active)\n    except Exception:\n        return False\n'''
+if old not in s: raise SystemExit('is_admin missing')
+s=s.replace(old,new,1)
+p.write_text(s)
+
+# app: apply persistent user discount automatically when no code
+p=Path('/home/user/work_panel/miniapp/app.py'); s=p.read_text()
+old='''    if not code:\n        price, _, active_code = b.dc_price(uid, base)\n        return int(price), int(base - price), active_code\n'''
+new='''    if not code:\n        price, _, active_code = b.dc_price(uid, base)\n        try:\n            r = b.q("SELECT percent FROM user_discounts WHERE user_id=? AND active=1", (uid,), True)\n            if r:\n                off = int(base) * int(r["percent"]) // 100\n                return max(0, int(price) - off), int(base) - max(0, int(price) - off), active_code\n        except Exception:\n            pass\n        return int(price), int(base - price), active_code\n'''
+if old not in s: raise SystemExit('price block missing')
+s=s.replace(old,new,1)
+p.write_text(s)
