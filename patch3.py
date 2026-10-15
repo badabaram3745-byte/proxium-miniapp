@@ -1,0 +1,33 @@
+from pathlib import Path
+p=Path('/home/user/work_panel3/miniapp/admin_panel.py'); s=p.read_text()
+needle='''    return {"ok": True, "buttons": buttons, "texts": tx, "premium": x.S("premium_on") == "1"}\n\n\nclass BtnLookReq'''
+insert='''    em = getattr(x, "EMOJI", {})\n    emojis = [{"key": k, "fallback": v, "id": x.S("emoji:" + k) or "", "custom": x.S("emoji_fb:" + k) or ""} for k, v in em.items()]\n    return {"ok": True, "buttons": buttons, "texts": tx, "emojis": emojis, "premium": x.S("premium_on") == "1"}\n\nclass EmojiReq(BaseModel):\n    key: str\n    emoji_id: str = ""\n    fallback: str = ""\n\n@router.post("/panel/api/appearance/emoji")\ndef appearance_emoji(req: EmojiReq, request: Request):\n    guard(request, True); x = b(); em = getattr(x, "EMOJI", {})\n    if req.key not in em: raise HTTPException(404, "ایموجی پیدا نشد")\n    eid = re.sub(r"\\D", "", (req.emoji_id or "").translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")))[:20]\n    if req.emoji_id.strip() and not re.fullmatch(r"[0-9]{15,20}", eid): raise HTTPException(400, "آیدی ایموجی باید ۱۵ تا ۲۰ رقم باشد")\n    fb = (req.fallback or em[req.key] or "⭐️").strip()[:8]\n    x.set_S("emoji:" + req.key, eid); x.set_S("emoji_fb:" + req.key, fb)\n    audit("look_emoji", req.key, eid); return {"ok": True, "id": eid, "fallback": fb}\n\n\nclass BtnLookReq'''
+if needle not in s: raise SystemExit('appearance return missing')
+s=s.replace(needle,insert,1)
+# style success for broadcast button
+s=s.replace('''markup = {"inline_keyboard": [[{"text": "✅ " + label, "url": f"https://t.me/{username}?start={start}"}]]}''','''markup = {"inline_keyboard": [[{"text": "✅ " + label, "url": f"https://t.me/{username}?start={start}", "style": "success"}]]}''',1)
+p.write_text(s)
+
+p=Path('/home/user/work_panel3/miniapp/static/panel.html'); s=p.read_text()
+s=s.replace('<button type="button" data-k="txt">پیام‌ها <b id="lookTxtN" class="num"></b></button>','<button type="button" data-k="txt">پیام‌ها <b id="lookTxtN" class="num"></b></button><button type="button" data-k="emoji">ایموجی‌ها <b id="lookEmojiN" class="num"></b></button>')
+s=s.replace('تغییر رنگ، تغییر نام، تغییر پیغام و ایموجی پریمیوم.','تغییر رنگ، تغییر نام، پیام و ایموجی‌های پریمیوم از همین‌جا.')
+p.write_text(s)
+
+p=Path('/home/user/work_panel3/miniapp/static/panel.js'); s=p.read_text()
+s=s.replace('''const LOOK = { btns: [], texts: [], premium: true, kind: 'btn', loaded: false };''','''const LOOK = { btns: [], texts: [], emojis: [], premium: true, kind: 'btn', loaded: false };''')
+s=s.replace('''LOOK.btns = d.buttons; LOOK.texts = d.texts; LOOK.premium = d.premium; LOOK.loaded = true;''','''LOOK.btns = d.buttons; LOOK.texts = d.texts; LOOK.emojis = d.emojis || []; LOOK.premium = d.premium; LOOK.loaded = true;''',1)
+old='''  const ts = LOOK.texts.filter(t => match(q, t.title, t.key, t.value));\n  $('#lookBtnN').textContent = num(bs.length); $('#lookTxtN').textContent = num(ts.length);\n  $$('#lookSeg button').forEach(b => b.classList.toggle('on', b.dataset.k === LOOK.kind));\n  if (LOOK.kind === 'btn') {'''
+new='''  const ts = LOOK.texts.filter(t => match(q, t.title, t.key, t.value));\n  const es = LOOK.emojis.filter(t => match(q, t.key, t.fallback, t.id));\n  $('#lookBtnN').textContent = num(bs.length); $('#lookTxtN').textContent = num(ts.length); $('#lookEmojiN').textContent = num(es.length);\n  $$('#lookSeg button').forEach(b => b.classList.toggle('on', b.dataset.k === LOOK.kind));\n  if (LOOK.kind === 'emoji') {\n    $('#lookList').innerHTML = es.length ? es.map(e => `<button type="button" class="look-btn emoji-row" data-le="${esc(e.key)}"><span class="swatch">${esc(e.fallback || '⭐️')}</span><span class="lb-txt"><b>${esc(e.key)}</b><small>${e.id ? 'آیدی پریمیوم ثبت شده' : 'بدون آیدی پریمیوم'}</small></span><i>‹</i></button>`).join('') : `<p class="empty">ایموجی‌ای پیدا نشد.</p>`;\n  } else if (LOOK.kind === 'btn') {'''
+if old not in s: raise SystemExit('render block missing')
+s=s.replace(old,new,1)
+s=s.replace("if (b.dataset.lb != null) openBtn(+b.dataset.lb); else openText(b.dataset.lt);", "if (b.dataset.le != null) openEmoji(b.dataset.le); else if (b.dataset.lb != null) openBtn(+b.dataset.lb); else openText(b.dataset.lt);")
+# Add openEmoji before openText
+marker='''function openText(k) {'''
+func='''function openEmoji(k) {\n  const e = LOOK.emojis.find(x => x.key === k); if (!e) return;\n  openSheet(`<div class="sheet-head"><div><small>PREMIUM EMOJI</small><h3>ایموجی ${esc(e.key)}</h3></div><button type="button" class="icon-btn" data-sclose>×</button></div><div class="preview"><span class="emoji-big">${esc(e.fallback || '⭐️')}</span><small>پیش‌نمایش جایگزین در صورت خاموش بودن پریمیوم</small></div><form id="emojiForm" class="form-grid"><label>آیدی custom emoji تلگرام<input id="emojiIdIn" inputmode="numeric" dir="ltr" value="${esc(e.id)}" placeholder="5368324170671202286"></label><label>ایموجی جایگزین<input id="emojiFbIn" value="${esc(e.fallback || '⭐️')}" maxlength="8"></label><p class="hint">آیدی را از یک ایموجی پریمیوم در تلگرام کپی کن. اگر خالی باشد، ایموجی معمولی نمایش داده می‌شود.</p><div class="acts"><button class="btn primary">💾 ذخیره ایموجی</button><button type="button" class="btn ghost" id="emojiClear">پاک کردن آیدی</button></div></form>`);\n  $('#emojiForm').addEventListener('submit', async ev => { ev.preventDefault(); const id = $('#emojiIdIn').value.trim(); const fallback = $('#emojiFbIn').value.trim() || '⭐️'; const r = await act(ev.submitter, () => api('appearance/emoji', { key: k, emoji_id: id, fallback }), 'ایموجی ذخیره شد ✓'); if (r && r !== true) { e.id = r.id; e.fallback = r.fallback; closeSheet(); renderLook(); } });\n  $('#emojiClear').addEventListener('click', async ev => { const r = await act(ev.target, () => api('appearance/emoji', { key: k, emoji_id: '', fallback: $('#emojiFbIn').value.trim() || '⭐️' }), 'آیدی ایموجی پاک شد'); if (r && r !== true) { e.id = ''; closeSheet(); renderLook(); } });\n}\n\n'''
+if marker not in s: raise SystemExit('openText marker missing')
+s=s.replace(marker,func+marker,1)
+# boot appearance load second occurrence
+s=s.replace('''LOOK.btns = d.buttons; LOOK.texts = d.texts; LOOK.premium = d.premium; LOOK.loaded = true; }).catch''','''LOOK.btns = d.buttons; LOOK.texts = d.texts; LOOK.emojis = d.emojis || []; LOOK.premium = d.premium; LOOK.loaded = true; }).catch''',1)
+p.write_text(s)
+
+p=Path('/home/user/work_panel3/miniapp/static/panel.css'); s=p.read_text(); s += '''\n.emoji-big{font-size:54px;line-height:1}.emoji-row .swatch{font-size:25px}.bc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.bc-actions input{flex:1 1 220px}\n'''; p.write_text(s)
