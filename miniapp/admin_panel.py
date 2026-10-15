@@ -246,6 +246,8 @@ def user_ban(uid: int, req: BanReq, request: Request):
 
 class MsgReq(BaseModel):
     text: str
+    button_text: str = ""
+    button_start: str = ""
 
 
 @router.post("/panel/api/users/{uid}/message")
@@ -469,6 +471,22 @@ def plan_add(req: PlanReq, request: Request):
     if min(req.months, req.gb, req.days) <= 0 or req.price < 0: raise HTTPException(400, "مقادیر نامعتبر")
     pid = b().ex("INSERT INTO plans(months,gb,days,price) VALUES(?,?,?,?)", (req.months, req.gb, req.days, req.price)); audit("plan_add", pid)
     return {"ok": True, "id": pid}
+
+class PlanBulkReq(BaseModel):
+    months: int
+    days: int
+    items: list[dict]
+
+@router.post("/panel/api/plans/bulk")
+def plan_bulk(req: PlanBulkReq, request: Request):
+    guard(request, True); x = b()
+    if req.months <= 0 or req.days <= 0 or not req.items or len(req.items) > 50: raise HTTPException(400, "لیست پلن‌ها نامعتبر است")
+    ids = []
+    for item in req.items:
+        gb, price = int(item.get("gb", 0)), int(item.get("price", -1))
+        if gb <= 0 or price < 0: raise HTTPException(400, "حجم یا قیمت نامعتبر است")
+        ids.append(x.ex("INSERT INTO plans(months,gb,days,price) VALUES(?,?,?,?)", (req.months, gb, req.days, price)))
+    audit("plan_bulk_add", len(ids)); return {"ok": True, "ids": ids}
 
 
 class PlanEdit(BaseModel):
@@ -796,12 +814,12 @@ def audit_log(request: Request):
 
 
 # ---------- broadcast ----------
-async def _broadcast(text):
+async def _broadcast(text, markup=None):
     x = b(); ids = [r["id"] for r in x.q("SELECT id FROM users WHERE banned=0")]
     _bc.update(running=True, sent=0, failed=0, total=len(ids))
     try:
         for uid in ids:
-            ok = await asyncio.to_thread(tgapi.safe_send, uid, text, None, None)
+            ok = await asyncio.to_thread(tgapi.safe_send, uid, text, markup, None)
             _bc["sent" if ok else "failed"] += 1
             await asyncio.sleep(0.05)       # ~20 msg/s, under Telegram limits
     finally:
@@ -814,7 +832,14 @@ async def broadcast(req: MsgReq, request: Request):
     guard(request, True); text = (req.text or "").strip()
     if not text: raise HTTPException(400, "متن خالی است")
     if _bc["running"]: raise HTTPException(409, "یک پیام همگانی در حال ارسال است")
-    asyncio.create_task(_broadcast(text[:4000]))
+    label = (req.button_text or "").strip()[:64]
+    start = re.sub(r"[^a-zA-Z0-9_\-]", "", (req.button_start or "start").strip())[:50] or "start"
+    markup = None
+    if label:
+        username = os.getenv("BOT_USERNAME", "").strip().lstrip("@")
+        if not username: raise HTTPException(400, "BOT_USERNAME برای دکمه استارت تنظیم نشده است")
+        markup = {"inline_keyboard": [[{"text": "✅ " + label, "url": f"https://t.me/{username}?start={start}"}]]}
+    asyncio.create_task(_broadcast(text[:4000], markup))
     return {"ok": True}
 
 
