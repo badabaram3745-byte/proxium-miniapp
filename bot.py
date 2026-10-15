@@ -1394,9 +1394,18 @@ def dc_check(uid, code):
     return r, ""
 
 def dc_price(uid, price):
-    """قیمت نهایی بعد از کد تخفیف اعمال‌شده → (قیمت, متن نمایش, کد)"""
+    """قیمت نهایی کد یا تخفیف اختصاصی کاربر؛ منبع قیمت همیشه دیتابیس است."""
     code = DC_PENDING.get(uid)
-    if not code: return int(price), "", None
+    if not code:
+        try:
+            r = q("SELECT percent FROM user_discounts WHERE user_id=? AND active=1", (uid,), True)
+            if r:
+                off = int(price) * int(r["percent"]) // 100
+                final = max(int(price) - off, 0)
+                return final, "\n\n🎁 تخفیف اختصاصی شما: " + str(r["percent"]) + "٪", None
+        except Exception:
+            pass
+        return int(price), "", None
     r, _ = dc_check(uid, code)
     if not r: DC_PENDING.pop(uid, None); return int(price), "", None
     off = int(price) * int(r["percent"]) // 100
