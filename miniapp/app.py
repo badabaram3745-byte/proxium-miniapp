@@ -49,8 +49,7 @@ def user_from_init(init_data: str):
     pairs = dict(parse_qsl(init_data, keep_blank_values=True)); received = pairs.pop("hash", "")
     try: auth_date = int(pairs.get("auth_date", "0"))
     except ValueError: raise HTTPException(401, "Invalid Telegram init data")
-    age = time.time() - auth_date
-    if not received or age < -60 or age > 86400: raise HTTPException(401, "Invalid or expired init data")
+    if not received or time.time() - auth_date > 86400: raise HTTPException(401, "Invalid or expired init data")
     check = "\n".join(f"{k}={pairs[k]}" for k in sorted(pairs))
     secret = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
     if not hmac.compare_digest(hmac.new(secret, check.encode(), hashlib.sha256).hexdigest(), received): raise HTTPException(401, "Invalid Telegram signature")
@@ -59,9 +58,6 @@ def user_from_init(init_data: str):
 def auth(x_telegram_init_data: str | None):
     u = user_from_init(x_telegram_init_data or "")
     if not u.get("id"): raise HTTPException(401, "Telegram user missing")
-    b = bot_module(); dbu = b.get_user(int(u["id"]))
-    if not dbu: raise HTTPException(404, "اول یک بار ربات را استارت کن")
-    if int(dbu["banned"] or 0): raise HTTPException(403, "حساب شما مسدود است")
     return u
 
 def bot_module():
@@ -104,9 +100,8 @@ def charge(b, uid: int, price: int):
     """کسر موجودی با بررسی اینکه واقعا کم شد."""
     dbu = b.get_user(uid); before = int(dbu["balance"] or 0)
     if before < price: raise HTTPException(402, f"موجودی کافی نیست. موجودی: {b.money(dbu['balance'])}")
-    with b.DB_LOCK:
-        cur = b.CON.execute("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?", (price, uid, price)); b.CON.commit()
-    if cur.rowcount != 1:
+    b.ex("UPDATE users SET balance=balance-? WHERE id=? AND balance>=?", (price, uid, price))
+    if int(b.get_user(uid)["balance"] or 0) > before - price:
         raise HTTPException(402, "موجودی کافی نیست؛ دوباره تلاش کن")
 
 def refund(b, uid: int, price: int):

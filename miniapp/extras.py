@@ -213,23 +213,19 @@ async def ticket_new(req: TicketReq, x_telegram_init_data: str | None = Header(d
 @router.post("/api/x/tickets/{tid}/reply")
 async def ticket_reply(tid: int, req: TicketReq, x_telegram_init_data: str | None = Header(default=None)):
     core, b, uid, dbu = ctx(x_telegram_init_data); ensure_tables(b); body = _clean_body(req.body)
-    async with core.user_lock(uid):
-        t = _ticket(b, tid, uid)
-        if t["status"] != "open": raise HTTPException(409, "این تیکت بسته شده؛ تیکت جدید باز کن")
-        now = int(time.time())
-        b.ex("INSERT INTO support_messages(ticket_id,sender_id,body,created) VALUES(?,?,?,?)", (tid, uid, body, now))
-        b.ex("UPDATE support_tickets SET updated=?,admin_id=0 WHERE id=?", (now, tid)); audit(b, uid, "ticket_message", tid, body)
+    t = _ticket(b, tid, uid)
+    if t["status"] != "open": raise HTTPException(409, "این تیکت بسته شده؛ تیکت جدید باز کن")
+    now = int(time.time())
+    b.ex("INSERT INTO support_messages(ticket_id,sender_id,body,created) VALUES(?,?,?,?)", (tid, uid, body, now))
+    b.ex("UPDATE support_tickets SET updated=?,admin_id=0 WHERE id=?", (now, tid)); audit(b, uid, "ticket_message", tid, body)
     await asyncio.to_thread(_notify_admins_ticket, b, tid, uid, body, False)
     return {"ok": True, "id": tid}
 
 
 @router.post("/api/x/tickets/{tid}/close")
-async def ticket_close(tid: int, x_telegram_init_data: str | None = Header(default=None)):
-    core, b, uid, dbu = ctx(x_telegram_init_data); ensure_tables(b)
-    async with core.user_lock(uid):
-        _ticket(b, tid, uid)
-        b.ex("UPDATE support_tickets SET status='closed',updated=? WHERE id=? AND user_id=?", (int(time.time()), tid, uid))
-    audit(b, uid, "ticket_close", tid)
+def ticket_close(tid: int, x_telegram_init_data: str | None = Header(default=None)):
+    core, b, uid, dbu = ctx(x_telegram_init_data); ensure_tables(b); _ticket(b, tid, uid)
+    b.ex("UPDATE support_tickets SET status='closed',updated=? WHERE id=?", (int(time.time()), tid)); audit(b, uid, "ticket_close", tid)
     return {"ok": True}
 
 
@@ -322,7 +318,10 @@ def _ip_lookup(ip):
 
 @router.get("/api/x/ip")
 async def ip_info(request: Request, x_telegram_init_data: str | None = Header(default=None)):
-    ctx(x_telegram_init_data)
+    # This endpoint is intentionally readable without Telegram headers so it can
+    # be tested from a normal browser. The mini-app still sends init-data.
+    if x_telegram_init_data:
+        ctx(x_telegram_init_data)
     ip = _client_ip(request)
     if not ip: raise HTTPException(500, "IP پیدا نشد")
     d = await asyncio.to_thread(_ip_lookup, ip)

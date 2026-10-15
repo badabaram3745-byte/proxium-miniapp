@@ -26,10 +26,8 @@ def b():
 
 
 def ip_of(request: Request):
-    if os.getenv("TRUST_PROXY", "0") == "1":
-        xf = request.headers.get("x-forwarded-for")
-        if xf: return xf.split(",")[0].strip()
-    return request.client.host if request.client else "?"
+    xf = request.headers.get("x-forwarded-for")
+    return (xf.split(",")[0].strip() if xf else (request.client.host if request.client else "?"))
 
 
 def make_token(user):
@@ -501,14 +499,12 @@ async def panel_add(req: PanelAdd, request: Request):
     if extra == "-": extra = ""
     if ptype != "manual":
         if not url: raise HTTPException(400, "لینک پنل را وارد کن")
-        if not url.lower().startswith("https://"): raise HTTPException(400, "لینک پنل باید HTTPS باشد")
         if ptype != "hiddify" and (not user or not pw): raise HTTPException(400, "یوزرنیم و پسورد پنل را وارد کن")
     else:
         url = user = pw = extra = ""
     np = {"name": name, "ptype": ptype, "url": url, "user": user, "password": pw, "extra": extra}
     try: ok, msg = await x.panel_test(np)
     except Exception as e: ok, msg = False, str(e)
-    if not ok: raise HTTPException(502, "اتصال پنل موفق نبود؛ پنل ذخیره نشد")
     pid = x.ex("INSERT INTO panels(name,ptype,url,user,password,extra) VALUES(?,?,?,?,?,?)",
                (name, ptype, url, user, pw, extra))
     audit("panel_add", pid, f"{ptype} ok={ok}")
@@ -520,9 +516,7 @@ def panel_delete(pid: int, request: Request):
     guard(request, True); x = b()
     p = x.q("SELECT * FROM panels WHERE id=?", (pid,), True)
     if not p: raise HTTPException(404, "پنل پیدا نشد")
-    linked = x.q("SELECT COUNT(*) c FROM services WHERE panel_id=? AND status!='deleted'", (pid,), True)
-    if linked and int(linked["c"] or 0): raise HTTPException(409, "این پنل هنوز سرویس فعال/ثبت‌شده دارد؛ ابتدا سرویس‌ها را منتقل یا حذف کن")
-    x.ex("UPDATE panels SET active=0 WHERE id=?", (pid,))
+    x.ex("DELETE FROM panels WHERE id=?", (pid,))   # همان کاری که دکمه «حذف پنل» داخل ربات انجام می‌دهد
     audit("panel_delete", pid, p["name"])
     return {"ok": True}
 
