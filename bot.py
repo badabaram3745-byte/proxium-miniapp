@@ -28,7 +28,7 @@ MAIN_ADMIN_ID = 7363962357
 ENV_ADMIN_IDS = set(ADMIN_IDS)  # ادمین‌های داخل تنظیمات هم ادمین اصلی حساب می‌شوند
 ADMIN_IDS.add(MAIN_ADMIN_ID)
 BOT_NAME = os.getenv("BOT_NAME", "پروکسیوم")
-DB_PATH = os.getenv("DB_PATH", "bot.db")
+DB_PATH = os.getenv("DB_PATH") or ("/data/bot.db" if os.path.isdir("/data") and os.access("/data", os.W_OK) else "bot.db")
 RTL = os.getenv("RTL_BUTTONS", "1") == "1"      # دکمه اول هر ردیف سمت راست باشد
 USER_PREFIX = os.getenv("USER_PREFIX", "px")
 
