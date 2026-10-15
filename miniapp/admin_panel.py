@@ -107,6 +107,60 @@ def logout():
 def me(request: Request):
     guard(request); return {"ok": True, "user": PANEL_USER}
 
+# ---------- additive admin management ----------
+def _temp_admins():
+    try:
+        raw = b().S("temp_admins") or "[]"
+        return json.loads(raw) if isinstance(raw, str) else []
+    except Exception:
+        return []
+
+def _save_temp_admins(items):
+    b().set_S("temp_admins", json.dumps(items, ensure_ascii=False, separators=(",", ":")))
+
+class AdminReq(BaseModel):
+    user_id: int
+    days: int = 0
+    hours: int = 0
+
+@router.get("/panel/api/admins")
+def admins(request: Request):
+    guard(request); x = b(); now = int(time.time())
+    temp = [a for a in _temp_admins() if int(a.get("expires", 0)) > now]
+    if len(temp) != len(_temp_admins()): _save_temp_admins(temp)
+    permanent = sorted(set(getattr(x, "extra_admins", lambda: [])()))
+    main = int(getattr(x, "MAIN_ADMIN_ID", 0))
+    env = sorted(set(getattr(x, "ENV_ADMIN_IDS", set())))
+    def user(uid):
+        u = x.q("SELECT id,name,username FROM users WHERE id=?", (uid,), True)
+        return {"id": uid, "name": (u["name"] if u else ""), "username": (u["username"] if u else "")}
+    return {"ok": True, "main": user(main), "env": [user(i) for i in env if i != main],
+            "permanent": [user(i) for i in permanent if i not in env and i != main], "temporary": [dict(user(int(a["id"])), expires=int(a["expires"])) for a in temp]}
+
+@router.post("/panel/api/admins")
+def admin_add(req: AdminReq, request: Request):
+    guard(request, True); uid = int(req.user_id); x = b()
+    if uid <= 0: raise HTTPException(400, "آیدی کاربر نامعتبر است")
+    if not x.q("SELECT 1 FROM users WHERE id=?", (uid,), True): raise HTTPException(404, "کاربر پیدا نشد")
+    duration = max(0, int(req.days or 0)) * 86400 + max(0, int(req.hours or 0)) * 3600
+    if duration:
+        items = [a for a in _temp_admins() if int(a.get("id", 0)) != uid]
+        items.append({"id": uid, "expires": int(time.time()) + duration})
+        _save_temp_admins(items); audit("admin_temp_add", uid, str(duration))
+        return {"ok": True, "kind": "temporary"}
+    ids = list(getattr(x, "extra_admins", lambda: [])())
+    if uid not in ids: ids.append(uid)
+    getattr(x, "save_admins")(ids); audit("admin_add", uid)
+    return {"ok": True, "kind": "permanent"}
+
+@router.post("/panel/api/admins/{uid}/delete")
+def admin_delete(uid: int, request: Request):
+    guard(request, True); x = b(); main = int(getattr(x, "MAIN_ADMIN_ID", 0))
+    if uid == main or uid in set(getattr(x, "ENV_ADMIN_IDS", set())): raise HTTPException(400, "ادمین اصلی یا تنظیم‌شده قابل حذف نیست")
+    getattr(x, "save_admins")([i for i in getattr(x, "extra_admins", lambda: [])() if int(i) != uid])
+    _save_temp_admins([a for a in _temp_admins() if int(a.get("id", 0)) != uid]); audit("admin_delete", uid)
+    return {"ok": True}
+
 
 # ---------- dashboard ----------
 @router.get("/panel/api/stats")
@@ -333,7 +387,7 @@ def services(request: Request, q: str = "", status: str = "", offset: int = 0, l
     base = "FROM services s LEFT JOIN panels p ON p.id=s.panel_id LEFT JOIN users u ON u.id=s.user_id WHERE " + " AND ".join(where)
     total = (x.q("SELECT COUNT(*) c " + base, tuple(args), True) or {"c": 0})["c"]
     r = x.q("SELECT s.id,s.user_id,s.username,s.gb,s.days,s.price,s.created,s.expire,s.status,s.is_test,s.link,s.sub,"
-            "p.name panel,u.name uname,u.username uuser " + base + " ORDER BY s.id DESC LIMIT ? OFFSET ?", tuple(args) + (limit, offset))
+            "p.name panel,p.ptype,u.name uname,u.username uuser,u.phone uphone " + base + " ORDER BY s.id DESC LIMIT ? OFFSET ?", tuple(args) + (limit, offset))
     return {"ok": True, "items": rows(r), "total": total, "offset": offset, "limit": limit}
 
 
@@ -520,6 +574,31 @@ def panel_delete(pid: int, request: Request):
     audit("panel_delete", pid, p["name"])
     return {"ok": True}
 
+
+# ---------- per-user discounts (additive) ----------
+@router.get("/panel/api/user-discounts")
+def user_discounts(request: Request):
+    guard(request); x = b()
+    x.ex("CREATE TABLE IF NOT EXISTS user_discounts(user_id INTEGER PRIMARY KEY, percent INTEGER NOT NULL, active INTEGER DEFAULT 1, created INTEGER)")
+    r = x.q("SELECT d.*,u.name,u.username FROM user_discounts d LEFT JOIN users u ON u.id=d.user_id ORDER BY d.created DESC")
+    return {"ok": True, "items": rows(r)}
+
+class UserDiscountReq(BaseModel):
+    user_id: int
+    percent: int
+
+@router.post("/panel/api/user-discounts")
+def user_discount_add(req: UserDiscountReq, request: Request):
+    guard(request, True); x = b(); uid = int(req.user_id); percent = max(1, min(100, int(req.percent)))
+    if not x.q("SELECT 1 FROM users WHERE id=?", (uid,), True): raise HTTPException(404, "کاربر پیدا نشد")
+    x.ex("CREATE TABLE IF NOT EXISTS user_discounts(user_id INTEGER PRIMARY KEY, percent INTEGER NOT NULL, active INTEGER DEFAULT 1, created INTEGER)")
+    x.ex("INSERT INTO user_discounts(user_id,percent,active,created) VALUES(?,?,1,?) ON CONFLICT(user_id) DO UPDATE SET percent=excluded.percent,active=1", (uid, percent, int(time.time())))
+    audit("user_discount_add", uid, str(percent)); return {"ok": True}
+
+@router.post("/panel/api/user-discounts/{uid}/delete")
+def user_discount_delete(uid: int, request: Request):
+    guard(request, True); x = b(); x.ex("CREATE TABLE IF NOT EXISTS user_discounts(user_id INTEGER PRIMARY KEY, percent INTEGER NOT NULL, active INTEGER DEFAULT 1, created INTEGER)")
+    x.ex("DELETE FROM user_discounts WHERE user_id=?", (uid,)); audit("user_discount_delete", uid); return {"ok": True}
 
 # ---------- discounts ----------
 @router.get("/panel/api/discounts")

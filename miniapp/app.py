@@ -111,6 +111,13 @@ def price_for_code(b, uid: int, base: int, code: str | None):
     """Validate against the bot's real discounts table. Browser prices are never trusted."""
     if not code:
         price, _, active_code = b.dc_price(uid, base)
+        try:
+            r = b.q("SELECT percent FROM user_discounts WHERE user_id=? AND active=1", (uid,), True)
+            if r:
+                off = int(base) * int(r["percent"]) // 100
+                return max(0, int(price) - off), int(base) - max(0, int(price) - off), active_code
+        except Exception:
+            pass
         return int(price), int(base - price), active_code
     checker = getattr(b, "dc_check", None)
     if not checker: raise HTTPException(501, "سیستم کد تخفیف ربات فعال نیست")
