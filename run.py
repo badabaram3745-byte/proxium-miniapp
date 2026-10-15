@@ -13,7 +13,7 @@ def start_web():
         log_level="info",
         loop="asyncio",
         proxy_headers=True,
-        forwarded_allow_ips=os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1"),
+        forwarded_allow_ips="*",
     )
 
 
