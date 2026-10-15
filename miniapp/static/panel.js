@@ -431,7 +431,7 @@ $('#lq').addEventListener('input', renderLook);
 $('#lookClear').addEventListener('click', () => { $('#lq').value = ''; renderLook(); $('#lq').focus(); });
 $('#lookSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; LOOK.kind = b.dataset.k; renderLook(); });
 $('#lookList').addEventListener('click', e => {
-  const b = e.target.closest('[data-lb],[data-lt]'); if (!b) return;
+  const b = e.target.closest('[data-lb],[data-lt],[data-le]'); if (!b) return;
   if (b.dataset.le != null) openEmoji(b.dataset.le); else if (b.dataset.lb != null) openBtn(+b.dataset.lb); else openText(b.dataset.lt);
 });
 
