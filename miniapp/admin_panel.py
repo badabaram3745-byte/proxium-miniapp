@@ -726,7 +726,24 @@ def appearance(request: Request):
                         "text": "" if g else _guess_text(name, texts)})
     tx = [{"key": k, "title": v[0], "default": v[1], "value": x.S("text:" + k) or v[1], "custom": bool(x.S("text:" + k))}
           for k, v in texts.items()]
-    return {"ok": True, "buttons": buttons, "texts": tx, "premium": x.S("premium_on") == "1"}
+    em = getattr(x, "EMOJI", {})
+    emojis = [{"key": k, "fallback": v, "id": x.S("emoji:" + k) or "", "custom": x.S("emoji_fb:" + k) or ""} for k, v in em.items()]
+    return {"ok": True, "buttons": buttons, "texts": tx, "emojis": emojis, "premium": x.S("premium_on") == "1"}
+
+class EmojiReq(BaseModel):
+    key: str
+    emoji_id: str = ""
+    fallback: str = ""
+
+@router.post("/panel/api/appearance/emoji")
+def appearance_emoji(req: EmojiReq, request: Request):
+    guard(request, True); x = b(); em = getattr(x, "EMOJI", {})
+    if req.key not in em: raise HTTPException(404, "ایموجی پیدا نشد")
+    eid = re.sub(r"\D", "", (req.emoji_id or "").translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")))[:20]
+    if req.emoji_id.strip() and not re.fullmatch(r"[0-9]{15,20}", eid): raise HTTPException(400, "آیدی ایموجی باید ۱۵ تا ۲۰ رقم باشد")
+    fb = (req.fallback or em[req.key] or "⭐️").strip()[:8]
+    x.set_S("emoji:" + req.key, eid); x.set_S("emoji_fb:" + req.key, fb)
+    audit("look_emoji", req.key, eid); return {"ok": True, "id": eid, "fallback": fb}
 
 
 class BtnLookReq(BaseModel):
@@ -838,7 +855,7 @@ async def broadcast(req: MsgReq, request: Request):
     if label:
         username = os.getenv("BOT_USERNAME", "").strip().lstrip("@")
         if not username: raise HTTPException(400, "BOT_USERNAME برای دکمه استارت تنظیم نشده است")
-        markup = {"inline_keyboard": [[{"text": "✅ " + label, "url": f"https://t.me/{username}?start={start}"}]]}
+        markup = {"inline_keyboard": [[{"text": "✅ " + label, "url": f"https://t.me/{username}?start={start}", "style": "success"}]]}
     asyncio.create_task(_broadcast(text[:4000], markup))
     return {"ok": True}
 
