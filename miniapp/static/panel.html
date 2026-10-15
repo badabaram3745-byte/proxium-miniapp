@@ -30,7 +30,7 @@
       <button type="button" class="side-close" id="sideClose" aria-label="بستن منو">×</button>
     </div>
     <nav id="nav">
-      <div class="nav-group open">
+      <div class="nav-group">
         <button type="button" class="nav-head" data-group><span><i>🏠</i>عملیات روزانه</span><em>⌄</em></button>
         <div class="nav-items">
           <button type="button" data-tab="dash" class="on"><i>📊</i>داشبورد</button>
@@ -40,7 +40,7 @@
           <button type="button" data-tab="bc"><i>📢</i>پیام همگانی</button>
         </div>
       </div>
-      <div class="nav-group open">
+      <div class="nav-group">
         <button type="button" class="nav-head" data-group><span><i>💳</i>مالی و پرداخت</span><em>⌄</em></button>
         <div class="nav-items">
           <button type="button" data-tab="pay"><i>🧾</i>رسیدها<em id="badgePay" class="badge hidden"></em></button>
@@ -48,18 +48,19 @@
           <button type="button" data-tab="log"><i>📚</i>تراکنش و لاگ</button>
         </div>
       </div>
-      <div class="nav-group open">
+      <div class="nav-group">
         <button type="button" class="nav-head" data-group><span><i>🗂</i>کاتالوگ و زیرساخت</span><em>⌄</em></button>
         <div class="nav-items">
           <button type="button" data-tab="plans"><i>📦</i>پلن‌ها</button>
           <button type="button" data-tab="panels"><i>🔌</i>پنل‌های سرور</button>
         </div>
       </div>
-      <div class="nav-group open">
+      <div class="nav-group">
         <button type="button" class="nav-head" data-group><span><i>✨</i>تنظیمات ربات</span><em>⌄</em></button>
         <div class="nav-items">
           <button type="button" data-tab="look"><i>🎨</i>تغییرات ظاهر</button>
           <button type="button" data-tab="set"><i>⚙️</i>تنظیمات</button>
+          <button type="button" data-tab="admins"><i>🛡️</i>مدیریت ادمین‌ها</button>
         </div>
       </div>
     </nav>
@@ -134,6 +135,8 @@
     <section id="t-dc" class="tab">
       <h2>کدهای تخفیف</h2>
       <form id="dcAdd" class="card inline"><input name="code" placeholder="کد" required maxlength="40"><input name="percent" type="number" min="1" max="100" placeholder="درصد" required><input name="max_uses" type="number" min="0" placeholder="سقف استفاده (۰ = نامحدود)"><button class="btn primary">ساخت کد</button></form>
+      <div class="card inline user-dc-form"><strong>تخفیف اختصاصی کاربر</strong><input id="udUser" class="num" inputmode="numeric" placeholder="آیدی کاربر"><input id="udPercent" type="number" min="1" max="100" placeholder="درصد تخفیف"><button type="button" class="btn primary" id="udSave">ثبت تخفیف</button></div>
+      <div id="udList" class="list"></div>
       <div id="dcList" class="list"></div>
     </section>
 
@@ -153,6 +156,13 @@
       </form>
       <div class="seg look-seg" id="lookSeg"><button type="button" data-k="btn" class="on">دکمه‌ها <b id="lookBtnN" class="num"></b></button><button type="button" data-k="txt">پیام‌ها <b id="lookTxtN" class="num"></b></button></div>
       <div id="lookList" class="look-grid"></div>
+    </section>
+
+    <!-- admins -->
+    <section id="t-admins" class="tab">
+      <div class="bar"><div><h2>مدیریت ادمین‌ها</h2><p class="muted">ادمین دائمی یا موقت را با آیدی عددی کنترل کن.</p></div></div>
+      <form id="adminAdd" class="card inline admin-form"><input name="user_id" class="num" inputmode="numeric" placeholder="آیدی کاربر" required><input name="days" type="number" min="0" placeholder="روز (موقت)"><input name="hours" type="number" min="0" placeholder="ساعت (موقت)"><button class="btn primary">➕ افزودن ادمین</button></form>
+      <div id="adminList" class="list"></div>
     </section>
 
     <!-- settings -->

@@ -25,7 +25,7 @@ async function act(btn, fn, okMsg) {
 }
 const ST = { active: ['ok', 'فعال'], pending: ['wait', 'در انتظار'], expired: ['off', 'منقضی'], disabled: ['off', 'غیرفعال'], limited: ['off', 'محدود'], ok: ['ok', 'تأیید'], rejected: ['off', 'رد'], open: ['ok', 'باز'], closed: ['off', 'بسته'], error: ['off', 'خطا'], processing: ['wait', 'در حال بررسی'] };
 const tag = s => { const [c, t] = ST[s] || ['wait', s]; return `<span class="tag ${c}">${esc(t)}</span>`; };
-const TITLES = { dash: 'داشبورد', pay: 'رسیدها', users: 'کاربران', svc: 'سرویس‌ها', tk: 'تیکت‌ها', plans: 'پلن‌ها', panels: 'پنل‌های سرور', dc: 'کد تخفیف', bc: 'پیام همگانی', look: 'تغییرات ظاهر', set: 'تنظیمات', log: 'تراکنش و لاگ' };
+const TITLES = { dash: 'داشبورد', pay: 'رسیدها', users: 'کاربران', svc: 'سرویس‌ها', tk: 'تیکت‌ها', plans: 'پلن‌ها', panels: 'پنل‌های سرور', dc: 'کد تخفیف', bc: 'پیام همگانی', look: 'تغییرات ظاهر', set: 'تنظیمات', admins: 'مدیریت ادمین‌ها', log: 'تراکنش و لاگ' };
 
 /* ---------- fuzzy search (Persian-aware) ---------- */
 const norm = s => String(s ?? '').replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/[\u064B-\u0652]/g, '').replace(/[\s\u200c\u200e\u200f‌_\-()]+/g, '').toLowerCase();
@@ -57,7 +57,7 @@ $('#loginForm').addEventListener('submit', async e => {
 $('#logout').addEventListener('click', async () => { try { await api('logout', {}); } catch (_) {} showLogin(); });
 
 /* ---------- nav / menu ---------- */
-const LOAD = { dash: loadDash, pay: loadPay, users: loadUsers, svc: () => loadSvc(false), tk: loadTk, plans: loadPlans, panels: loadPanels, dc: loadDc, bc: loadBc, look: loadLook, set: loadSet, log: loadLog };
+const LOAD = { dash: loadDash, pay: loadPay, users: loadUsers, svc: () => loadSvc(false), tk: loadTk, plans: loadPlans, panels: loadPanels, dc: loadDc, bc: loadBc, look: loadLook, set: loadSet, admins: loadAdmins, log: loadLog };
 let cur = 'dash';
 const menu = open => $('#shell').classList.toggle('menu-open', open);
 function go(t) {
@@ -194,10 +194,10 @@ async function loadSvc(more) {
 function renderSvc() {
   $('#svcList').innerHTML = SV.items.length ? SV.items.map(s => {
     const off = s.status === 'disabled';
-    return `<div class="item svc ${off ? 'is-off' : ''}"><div class="grow"><b class="latin">${esc(s.username)}</b>
-    <small class="num">#${s.id} · کاربر <a href="#" data-user="${s.user_id}">${s.user_id}</a>${s.uname ? ' ' + esc(s.uname) : ''}${s.uuser ? ' @' + esc(s.uuser) : ''}</small>
-    <small class="num">${esc(s.panel || '—')} · ${num(s.gb)}GB / ${num(s.days)} روز · ${num(s.price)} تومان · انقضا ${when(s.expire)}</small></div>
-    ${s.is_test ? '<span class="tag wait">تست</span>' : ''}${tag(s.status)}
+    return `<div class="item svc ${off ? 'is-off' : ''}"><div class="grow svc-copy"><div class="svc-title"><b class="latin">${esc(s.username)}</b>${tag(s.status)}</div>
+    <div class="svc-meta"><span>👤 <a href="#" data-user="${s.user_id}">${s.user_id}</a>${s.uname ? ' · ' + esc(s.uname) : ''}${s.uuser ? ' · @' + esc(s.uuser) : ''}</span><span>🧩 ${esc(s.panel || '—')}</span></div>
+    <div class="svc-specs"><span>📦 حجم <b class="num">${num(s.gb)}GB</b></span><span>⏱ ${num(s.days)} روز</span><span>💰 ${num(s.price)} تومان</span><span>⌛ انقضا ${when(s.expire)}</span></div></div>
+    ${s.is_test ? '<span class="tag wait">تست</span>' : ''}
     <div class="acts">${s.sub || s.link ? `<button type="button" class="btn" data-copy="${esc(s.sub || s.link)}">⧉ کپی لینک</button>` : ''}
       ${s.status === 'pending' ? '' : `<button type="button" class="btn ${off ? 'ok' : 'warn'}" data-stog="${s.id}">${off ? '▶ فعال کردن' : '⏸ غیرفعال کردن'}</button>`}
       <button type="button" class="btn bad" data-sdel="${s.id}">🗑 حذف</button></div></div>`;
@@ -353,6 +353,7 @@ $('#panelAddBtn').addEventListener('click', async e => {
 /* ---------- discounts ---------- */
 async function loadDc() {
   const d = await act(null, () => api('discounts')); if (!d || d === true) return;
+  loadUserDiscounts();
   $('#dcList').innerHTML = d.items.map(c => `<div class="item"><div class="grow"><b class="latin">${esc(c.code)}</b><small class="num">${c.percent}% · استفاده ${num(c.used)}${c.max_uses ? ' از ' + num(c.max_uses) : ''}</small></div>
     ${c.active ? '<span class="tag ok">فعال</span>' : '<span class="tag off">غیرفعال</span>'}<div class="acts"><button type="button" class="btn" data-dtog="${esc(c.code)}">${c.active ? 'غیرفعال' : 'فعال'}</button><button type="button" class="btn bad" data-ddel="${esc(c.code)}">حذف</button></div></div>`).join('') || '<p class="empty">کدی نیست.</p>';
 }
@@ -365,6 +366,22 @@ $('#dcList').addEventListener('click', async e => {
   if (t.dataset.dtog) { if (await act(t, () => api(`discounts/${encodeURIComponent(t.dataset.dtog)}/toggle`, {}))) loadDc(); }
   if (t.dataset.ddel) { if (!confirm('حذف شود؟')) return; if (await act(t, () => api(`discounts/${encodeURIComponent(t.dataset.ddel)}/delete`, {}), 'حذف شد')) loadDc(); }
 });
+
+async function loadUserDiscounts() {
+  const d = await act(null, () => api('user-discounts')); if (!d || d === true) return;
+  $('#udList').innerHTML = d.items.map(x => `<div class="item"><div class="grow"><b>${esc(x.name || 'کاربر')} <small class="latin num">${x.user_id}</small></b><small>${x.username ? '@' + esc(x.username) + ' · ' : ''}${num(x.percent)}٪ تخفیف اختصاصی</small></div><span class="tag ok">فعال</span><div class="acts"><button type="button" class="btn bad" data-udel="${x.user_id}">حذف تخفیف</button></div></div>`).join('') || '<p class="empty">تخفیف اختصاصی ثبت نشده.</p>';
+}
+$('#udSave').addEventListener('click', async e => { const user_id = intOf($('#udUser').value), percent = intOf($('#udPercent').value); if (!(user_id > 0) || !(percent > 0 && percent <= 100)) return toast('آیدی و درصد را درست وارد کن', true); if (await act(e.target, () => api('user-discounts', { user_id, percent }), 'تخفیف اختصاصی ثبت شد ✓')) { $('#udUser').value = ''; $('#udPercent').value = ''; loadUserDiscounts(); } });
+$('#udList').addEventListener('click', async e => { const t = e.target.closest('[data-udel]'); if (!t) return; if (await act(t, () => api('user-discounts/' + t.dataset.udel + '/delete', {}), 'تخفیف حذف شد')) loadUserDiscounts(); });
+
+/* ---------- admins ---------- */
+async function loadAdmins() {
+  const d = await act(null, () => api('admins')); if (!d || d === true) return;
+  const row = (x, type, removable) => `<div class="item admin-row"><div class="avatar">${type === 'main' ? '👑' : type === 'temp' ? '⏳' : '🛡️'}</div><div class="grow"><b>${esc(x.name || 'کاربر بدون نام')} <small class="latin num">${x.id}</small></b><small>${x.username ? '@' + esc(x.username) : 'بدون یوزرنیم'}${type === 'temp' ? ' · تا ' + when(x.expires) : type === 'env' ? ' · از تنظیمات سرور' : ' · دائمی'}</small></div>${removable ? `<button type="button" class="btn bad" data-adel="${x.id}">حذف</button>` : '<span class="tag ok">فعال</span>'}</div>`;
+  $('#adminList').innerHTML = [row(d.main, 'main', false), ...(d.env || []).map(x => row(x, 'env', false)), ...(d.permanent || []).map(x => row(x, 'permanent', true)), ...(d.temporary || []).map(x => row(x, 'temp', true))].join('');
+}
+$('#adminAdd').addEventListener('submit', async e => { e.preventDefault(); const f = new FormData(e.target); const body = { user_id: intOf(f.get('user_id')), days: +(f.get('days') || 0), hours: +(f.get('hours') || 0) }; if (!(body.user_id > 0)) return toast('آیدی کاربر را درست وارد کن', true); if (await act(e.submitter, () => api('admins', body), 'ادمین اضافه شد ✓')) { e.target.reset(); loadAdmins(); } });
+$('#adminList').addEventListener('click', async e => { const t = e.target.closest('[data-adel]'); if (!t) return; if (await act(t, () => api('admins/' + t.dataset.adel + '/delete', {}), 'ادمین حذف شد')) loadAdmins(); });
 
 /* ---------- broadcast ---------- */
 let bcTimer;
