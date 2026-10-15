@@ -398,13 +398,13 @@ $('#bcForm').addEventListener('submit', async e => {
 });
 
 /* ---------- appearance: تغییرات ظاهر ---------- */
-const LOOK = { btns: [], texts: [], premium: true, kind: 'btn', loaded: false };
+const LOOK = { btns: [], texts: [], emojis: [], premium: true, kind: 'btn', loaded: false };
 const COLORS = [['orig', 'رنگ اورجینال'], ['green', 'سبز'], ['red', 'قرمز'], ['blue', 'آبی'], ['none', 'بی‌رنگ']];
 const colorName = c => (COLORS.find(x => x[0] === c) || COLORS[0])[1];
 async function loadLook(force) {
   if (!LOOK.loaded || force !== false) {
     const d = await act(null, () => api('appearance')); if (!d || d === true) return;
-    LOOK.btns = d.buttons; LOOK.texts = d.texts; LOOK.premium = d.premium; LOOK.loaded = true;
+    LOOK.btns = d.buttons; LOOK.texts = d.texts; LOOK.emojis = d.emojis || []; LOOK.premium = d.premium; LOOK.loaded = true;
   }
   renderLook();
 }
@@ -412,9 +412,12 @@ function renderLook() {
   const q = $('#lq').value.trim();
   const bs = LOOK.btns.map((b, i) => ({ ...b, i })).filter(b => match(q, b.name, b.label));
   const ts = LOOK.texts.filter(t => match(q, t.title, t.key, t.value));
-  $('#lookBtnN').textContent = num(bs.length); $('#lookTxtN').textContent = num(ts.length);
+  const es = LOOK.emojis.filter(t => match(q, t.key, t.fallback, t.id));
+  $('#lookBtnN').textContent = num(bs.length); $('#lookTxtN').textContent = num(ts.length); $('#lookEmojiN').textContent = num(es.length);
   $$('#lookSeg button').forEach(b => b.classList.toggle('on', b.dataset.k === LOOK.kind));
-  if (LOOK.kind === 'btn') {
+  if (LOOK.kind === 'emoji') {
+    $('#lookList').innerHTML = es.length ? es.map(e => `<button type="button" class="look-btn emoji-row" data-le="${esc(e.key)}"><span class="swatch">${esc(e.fallback || '⭐️')}</span><span class="lb-txt"><b>${esc(e.key)}</b><small>${e.id ? 'آیدی پریمیوم ثبت شده' : 'بدون آیدی پریمیوم'}</small></span><i>‹</i></button>`).join('') : `<p class="empty">ایموجی‌ای پیدا نشد.</p>`;
+  } else if (LOOK.kind === 'btn') {
     $('#lookList').innerHTML = bs.length ? bs.map(b => `<button type="button" class="look-btn c-${esc(b.color)}" data-lb="${b.i}">
         <span class="swatch"></span><span class="lb-txt"><b>${esc(b.label || b.name)}</b><small>${b.group ? 'گروه دکمه‌ها' : (b.label ? 'اصلی: ' + esc(b.name) : colorName(b.color))}${b.emoji ? ' · ⭐ پریمیوم' : ''}</small></span><i>‹</i></button>`).join('')
       : `<p class="empty">دکمه‌ای با «${esc(q)}» پیدا نشد.${ts.length ? ' در پیام‌ها ' + num(ts.length) + ' مورد هست.' : ''}</p>`;
@@ -429,7 +432,7 @@ $('#lookClear').addEventListener('click', () => { $('#lq').value = ''; renderLoo
 $('#lookSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; LOOK.kind = b.dataset.k; renderLook(); });
 $('#lookList').addEventListener('click', e => {
   const b = e.target.closest('[data-lb],[data-lt]'); if (!b) return;
-  if (b.dataset.lb != null) openBtn(+b.dataset.lb); else openText(b.dataset.lt);
+  if (b.dataset.le != null) openEmoji(b.dataset.le); else if (b.dataset.lb != null) openBtn(+b.dataset.lb); else openText(b.dataset.lt);
 });
 
 function btnPreview(b) { return `<span class="tg-btn c-${esc(b.color)}">${esc(b.label || b.name)}</span>`; }
@@ -497,6 +500,13 @@ function bindText(k) {
   $('#txForm').addEventListener('submit', async e => { e.preventDefault(); const v = $('#txIn').value; if (!v.trim()) return; const r = await act(e.submitter, () => api('appearance/text', { key: k, value: v }), 'پیغام ذخیره شد ✓'); if (r && r !== true) { t.value = r.value; t.custom = true; renderLook(); } });
   $('#txReset').addEventListener('click', async e => { if (!confirm('متن به حالت پیش‌فرض برگردد؟')) return; const r = await act(e.target, () => api('appearance/text', { key: k, reset: true }), 'متن پیش‌فرض برگشت'); if (r && r !== true) { t.value = r.value; t.custom = false; $('#txIn').value = r.value; renderLook(); } });
 }
+function openEmoji(k) {
+  const e = LOOK.emojis.find(x => x.key === k); if (!e) return;
+  openSheet(`<div class="sheet-head"><div><small>PREMIUM EMOJI</small><h3>ایموجی ${esc(e.key)}</h3></div><button type="button" class="icon-btn" data-sclose>×</button></div><div class="preview"><span class="emoji-big">${esc(e.fallback || '⭐️')}</span><small>پیش‌نمایش جایگزین در صورت خاموش بودن پریمیوم</small></div><form id="emojiForm" class="form-grid"><label>آیدی custom emoji تلگرام<input id="emojiIdIn" inputmode="numeric" dir="ltr" value="${esc(e.id)}" placeholder="5368324170671202286"></label><label>ایموجی جایگزین<input id="emojiFbIn" value="${esc(e.fallback || '⭐️')}" maxlength="8"></label><p class="hint">آیدی را از یک ایموجی پریمیوم در تلگرام کپی کن. اگر خالی باشد، ایموجی معمولی نمایش داده می‌شود.</p><div class="acts"><button class="btn primary">💾 ذخیره ایموجی</button><button type="button" class="btn ghost" id="emojiClear">پاک کردن آیدی</button></div></form>`);
+  $('#emojiForm').addEventListener('submit', async ev => { ev.preventDefault(); const id = $('#emojiIdIn').value.trim(); const fallback = $('#emojiFbIn').value.trim() || '⭐️'; const r = await act(ev.submitter, () => api('appearance/emoji', { key: k, emoji_id: id, fallback }), 'ایموجی ذخیره شد ✓'); if (r && r !== true) { e.id = r.id; e.fallback = r.fallback; closeSheet(); renderLook(); } });
+  $('#emojiClear').addEventListener('click', async ev => { const r = await act(ev.target, () => api('appearance/emoji', { key: k, emoji_id: '', fallback: $('#emojiFbIn').value.trim() || '⭐️' }), 'آیدی ایموجی پاک شد'); if (r && r !== true) { e.id = ''; closeSheet(); renderLook(); } });
+}
+
 function openText(k) {
   const t = LOOK.texts.find(x => x.key === k); if (!t) return;
   openSheet(`<div class="sheet-head"><div><small>MESSAGE</small><h3>${esc(t.title)}</h3></div><button type="button" class="icon-btn" data-sclose>×</button></div>${textForm(k)}`);
@@ -528,5 +538,5 @@ async function loadLog() {
 
 /* ---------- boot ---------- */
 setInterval(() => { if (!$('#shell').classList.contains('hidden') && !$('#sheet').classList.contains('open') && (cur === 'dash' || cur === 'pay')) LOAD[cur](); }, 30000);
-(async () => { try { await api('me'); showShell(); api('appearance').then(d => { LOOK.btns = d.buttons; LOOK.texts = d.texts; LOOK.premium = d.premium; LOOK.loaded = true; }).catch(() => {}); } catch (e) { showLogin(); if (!/وارد/.test(e.message)) $('#loginErr').textContent = e.message; } })();
+(async () => { try { await api('me'); showShell(); api('appearance').then(d => { LOOK.btns = d.buttons; LOOK.texts = d.texts; LOOK.emojis = d.emojis || []; LOOK.premium = d.premium; LOOK.loaded = true; }).catch(() => {}); } catch (e) { showLogin(); if (!/وارد/.test(e.message)) $('#loginErr').textContent = e.message; } })();
 })();
