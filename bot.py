@@ -3,7 +3,7 @@
 ربات فروش VPN (پروکسیوم)
 نیازمند: python-telegram-bot >= 22.7  (پشتیبانی از دکمه رنگی style و icon_custom_emoji_id)
 """
-import os, re, io, json, time, uuid, html, secrets, sqlite3, logging, datetime as dt
+import os, re, io, json, time, uuid, html, secrets, sqlite3, logging, datetime as dt, threading
 import httpx
 import asyncio, hmac, hashlib, base64, urllib.parse  # ➕
 from telegram import (Update, InlineKeyboardButton as IKB, InlineKeyboardMarkup as IKM,
@@ -21,12 +21,12 @@ except ImportError:
     qrcode = None
 
 # ───────────────────────── تنظیمات اصلی ─────────────────────────
-BOT_TOKEN = os.getenv("BOT_TOKEN", "PUT_YOUR_TOKEN_HERE")
-ADMIN_IDS = {int(x) for x in os.getenv("ADMIN_IDS", "123456789").replace(" ", "").split(",") if x}
-# ➕ ادمین اصلی (فقط او می‌تواند ادمین اضافه/حذف کند)
-MAIN_ADMIN_ID = 123456789
-ENV_ADMIN_IDS = set(ADMIN_IDS)  # ادمین‌های داخل تنظیمات هم ادمین اصلی حساب می‌شوند
-ADMIN_IDS.add(MAIN_ADMIN_ID)
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+_raw_admin_ids = os.getenv("ADMIN_IDS", "")
+ADMIN_IDS = {int(x.strip()) for x in _raw_admin_ids.replace(" ", "").split(",") if x.strip().isdigit()}
+MAIN_ADMIN_ID = int(os.getenv("MAIN_ADMIN_ID", "0") or 0)
+ENV_ADMIN_IDS = set(ADMIN_IDS)
+if MAIN_ADMIN_ID > 0: ADMIN_IDS.add(MAIN_ADMIN_ID)
 BOT_NAME = os.getenv("BOT_NAME", "پروکسیوم")
 DB_PATH = os.getenv("DB_PATH", "bot.db")
 RTL = os.getenv("RTL_BUTTONS", "1") == "1"      # دکمه اول هر ردیف سمت راست باشد
@@ -219,15 +219,22 @@ EXTRA_HINT = {
 }
 
 # ───────────────────────── دیتابیس ─────────────────────────
-CON = sqlite3.connect(DB_PATH, check_same_thread=False)
+CON = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10)
 CON.row_factory = sqlite3.Row
+DB_LOCK = threading.RLock()
+try:
+    CON.execute("PRAGMA busy_timeout=10000")
+    CON.execute("PRAGMA journal_mode=WAL")
+except Exception: pass
 
 def q(sql, args=(), one=False):
-    rows = CON.execute(sql, args).fetchall()
+    with DB_LOCK:
+        rows = CON.execute(sql, args).fetchall()
     return (rows[0] if rows else None) if one else rows
 
 def ex(sql, args=()):
-    cur = CON.execute(sql, args); CON.commit(); return cur.lastrowid
+    with DB_LOCK:
+        cur = CON.execute(sql, args); CON.commit(); return cur.lastrowid
 
 def init_db():
     CON.executescript("""
