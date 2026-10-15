@@ -118,7 +118,7 @@
     <!-- plans -->
     <section id="t-plans" class="tab">
       <h2>پلن‌ها</h2>
-      <form id="planAdd" class="card inline"><input name="months" type="number" min="1" placeholder="ماه" required><input name="gb" type="number" min="1" placeholder="گیگ" required><input name="days" type="number" min="1" placeholder="روز" required><input name="price" type="number" min="0" placeholder="قیمت (تومان)" required><button class="btn primary">افزودن پلن</button></form>
+      <form id="planAdd" class="card inline"><input name="months" type="number" min="1" placeholder="ماه" required><input name="gb" type="number" min="1" placeholder="گیگ" required><input name="days" type="number" min="1" placeholder="روز" required><input name="price" type="number" min="0" placeholder="قیمت (تومان)" required><button class="btn primary">افزودن پلن</button><button type="button" class="btn" id="planBulkBtn">➕ افزودن چند پلن</button></form>
       <div id="monthCards" class="month-cards"></div>
       <div id="planHead" class="bar hidden"><h3 id="planTitle"></h3><button type="button" class="btn ghost" id="planBack">↩ همه مدت‌ها</button></div>
       <div id="planList" class="plan-grid"></div>
@@ -143,7 +143,7 @@
     <!-- broadcast -->
     <section id="t-bc" class="tab">
       <h2>پیام همگانی</h2>
-      <form id="bcForm" class="card"><textarea id="bcText" rows="6" maxlength="4000" placeholder="متن پیام برای همه کاربران (به جز مسدودها)"></textarea><button class="btn primary">ارسال برای همه</button><p id="bcState" class="muted"></p></form>
+      <form id="bcForm" class="card"><textarea id="bcText" rows="6" maxlength="4000" placeholder="متن پیام برای همه کاربران (به جز مسدودها)"></textarea><div class="bc-actions"><input id="bcBtnText" maxlength="64" placeholder="متن دکمه، اختیاری (مثلاً شروع ربات)"><input id="bcStart" maxlength="50" dir="ltr" placeholder="start یا کد شروع"><button class="btn primary">ارسال برای همه</button></div><small class="muted">اگر متن دکمه را بنویسی، یک دکمه سبز استارت تلگرام زیر پیام می‌آید. BOT_USERNAME باید در Railway تنظیم باشد.</small><p id="bcState" class="muted"></p></form>
     </section>
 
     <!-- appearance -->

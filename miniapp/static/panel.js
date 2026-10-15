@@ -288,6 +288,7 @@ $('#planAdd').addEventListener('submit', async e => {
   e.preventDefault(); const f = new FormData(e.target); const body = Object.fromEntries([...f].map(([k, v]) => [k, +v]));
   if (await act(e.submitter, () => api('plans', body), 'پلن اضافه شد ✓')) { e.target.reset(); PL.month = body.months; loadPlans(); }
 });
+$('#planBulkBtn').addEventListener('click', () => { openSheet(`<div class="sheet-head"><div><small>BULK PLANS</small><h3>افزودن چند پلن</h3></div><button type="button" class="icon-btn" data-sclose>×</button></div><form id="bulkPlanForm" class="form-grid"><label>مدت مشترک (ماه)<input id="bpMonths" type="number" min="1" value="1" required></label><label>روز مشترک<input id="bpDays" type="number" min="1" value="30" required></label><label>پلن‌ها، هر خط به شکل <code>حجم,قیمت</code><textarea id="bpItems" rows="7" placeholder="20,20000\n40,35000\n60,45000" required></textarea></label><p class="hint">بعد از ثبت، همه پلن‌ها در لیست می‌آیند و از بخش ویرایش می‌توانی دستی اصلاحشان کنی.</p><button class="btn primary wide">ثبت همه پلن‌ها</button></form>`); $('#bulkPlanForm').addEventListener('submit', async e => { e.preventDefault(); const items = $('#bpItems').value.split('\n').map(x => x.trim()).filter(Boolean).map(x => { const [gb, price] = x.split(',').map(v => intOf(v)); return { gb, price }; }); if (!items.length || items.some(x => !(x.gb > 0) || x.price < 0 || !Number.isFinite(x.price))) return toast('فرمت پلن‌ها باید حجم,قیمت باشد', true); const body = { months: +$('#bpMonths').value, days: +$('#bpDays').value, items }; if (await act(e.submitter, () => api('plans/bulk', body), 'پلن‌ها اضافه شدند ✓')) { closeSheet(); loadPlans(); } }); });
 
 /* ---------- panels ---------- */
 async function loadPanels() {
@@ -393,7 +394,7 @@ async function loadBc() {
 $('#bcForm').addEventListener('submit', async e => {
   e.preventDefault(); const text = $('#bcText').value.trim(); if (!text) return;
   if (!confirm('پیام برای همه کاربران ارسال شود؟')) return;
-  if (await act(e.submitter, () => api('broadcast', { text }), 'ارسال شروع شد')) { $('#bcText').value = ''; setTimeout(loadBc, 800); }
+  const button_text = $('#bcBtnText').value.trim(), button_start = $('#bcStart').value.trim() || 'start'; if (await act(e.submitter, () => api('broadcast', { text, button_text, button_start }), 'ارسال شروع شد')) { $('#bcText').value = ''; $('#bcBtnText').value = ''; $('#bcStart').value = ''; setTimeout(loadBc, 800); }
 });
 
 /* ---------- appearance: تغییرات ظاهر ---------- */
